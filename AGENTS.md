@@ -35,13 +35,18 @@ A comment explains what the code cannot say about itself. It never narrates what
 the next line already says. Write in the register of a specification: no first
 person, no hedging, no restating the obvious.
 
-**No references out of the file.** No comment may name a path under `openspec/`,
-a change name, a design section number (`D15`), or a task number. Those
-artifacts leave the working tree when the change ships, while comments are read
-for as long as the file exists. A rule that came from a design decision is
-stated as the rule. PRD requirement IDs are the one exception — `PRD.md` stays
-at the repository root, so an ID such as `FR-T07` keeps resolving — and even
-then the ID annotates an explanation, it never replaces one.
+**Comments stand alone.** No comment may cite a document: no path under
+`openspec/`, no change name, no design section (`D15`), no task number, no
+requirement ID (`FR-T07`), no PRD section number. A comment states what the code
+does in terms the file itself supplies, so a reader who has never opened a
+planning document still understands it. A rule that came from a design decision
+is stated as the rule; a requirement is stated as the behavior that satisfies
+it.
+
+The reason is not taste. Documents get rewritten, renumbered, and archived,
+while the comment is read for as long as the code exists. A citation either
+breaks or pulls the explanation out of the file into one the reader may not be
+able to open.
 
 **Modules, classes, interfaces.** The block comment states responsibility: what
 the unit owns, what it guarantees to its callers, and what it must not do.
@@ -121,7 +126,8 @@ as one function than as five.
 
 ### Self-check before opening a PR
 
-1. Does any comment name a file that leaves the tree with the change?
+1. Does any comment cite a document — a path, a change name, a section number,
+   a requirement ID?
 2. Can every field of every exported model be explained without opening another
    file?
 3. Is there a function, class, interface, or type that nothing calls or refers
