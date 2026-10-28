@@ -284,7 +284,9 @@ export const RECORD_SPECS: Readonly<Record<StoreName, RecordSpec>> = {
   pending_ops: {
     id: f({ type: 'uuidV7' }),
     command_type: f({ type: 'string', maxLength: 80 }),
-    payload: f({ type: 'json' }),
+    // 可为 null：有些命令本来就没有载荷（清空全部数据、标记同意）。
+    // 伪造一个空对象会让上云后的重放分不清「无载荷」与「空载荷」
+    payload: f({ type: 'json' }, true),
     applied_at: f({ type: 'isoUtc' }),
     tz_offset_minutes: f({ type: 'int', min: -720, max: 840 }),
   },

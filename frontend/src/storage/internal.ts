@@ -15,6 +15,18 @@
  */
 export { repositories, repositoryFor, createRepositories } from './repositories/index.ts'
 
+export {
+  StorageWriteError,
+  runCommandTransaction,
+} from './indexeddb/transaction.ts'
+
+export type {
+  CommandTransactionOptions,
+  WriteFailureReason,
+} from './indexeddb/transaction.ts'
+
+export type { DbProvider } from './indexeddb/db.ts'
+
 export type {
   IndexName,
   ListOptions,

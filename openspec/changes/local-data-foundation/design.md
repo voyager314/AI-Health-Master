@@ -204,6 +204,14 @@ PRD §8 的兼容矩阵（iOS Safari 16+、Android Chrome 110+）都支持 `data
 
 改用 store 名这个字面量做泛型键后推导必然成功，且 store 名与字段形状不匹配时错误落在构造点。
 
+### D19 命令用显式定义数组装配，不用全局 `registerCommand`
+
+`createCommandBus({ definitions: COMMANDS })` 接收一个显式数组，而不是让各模块在加载时调用全局的 `registerCommand`。
+
+全局注册的失效方式很隐蔽：注册时机取决于模块被 import 的顺序，漏掉一个 import 不会在启动时报错，而是等用户走到那条路径时才变成「未注册的命令类型」。显式数组把这个问题提前到编译期——命令没被列进 `COMMANDS` 就是一处未使用的导出，而重复的 type 在装配时直接抛 `DuplicateCommandError`，不会静默覆盖。
+
+同一个理由决定了 `pending_ops` 的写入位置：它在事务包装函数内部，不是 handler 的一个步骤。否则「这条命令有没有记日志」会变成每个 handler 的自觉，约束 9 就退化成了口头约定。handler 手里只有一个事务句柄，既跳不过日志，也开不了自己的事务。
+
 ## 目录结构与分层边界
 
 ```

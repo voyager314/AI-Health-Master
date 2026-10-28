@@ -15,9 +15,7 @@ import type {
   Row,
   WriteTx,
 } from '@/storage/repositories/types.ts'
-import type { IDBPDatabase } from 'idb'
-import { getDatabase } from './db.ts'
-import type { AppDb } from './schema.ts'
+import { getDatabase, type DbProvider } from './db.ts'
 import {
   LOCAL_USER_ID,
   assertValidRecord,
@@ -25,8 +23,7 @@ import {
   type Now,
 } from './write.ts'
 
-/** 取连接的方式。测试注入指向独立库名的 provider，避免用例互相干扰 */
-export type DbProvider = () => Promise<IDBPDatabase<AppDb>>
+export type { DbProvider }
 
 /**
  * 把 QuerySpec 的取数条件翻成 IDBKeyRange。

@@ -172,3 +172,11 @@ export function closeDatabase(): void {
   opened = null
   cached = null
 }
+
+/**
+ * 取连接的方式。
+ *
+ * Repository 与事务包装都接受它，测试据此把每个用例指向独立的数据库名，
+ * 不必重置 indexedDB 全局——测试代码因此完全不需要碰 IndexedDB API。
+ */
+export type DbProvider = () => Promise<IDBPDatabase<AppDb>>
