@@ -50,6 +50,13 @@ const MSG = {
   noReachUp: '分层方向：下层不得反向导入上层。',
 }
 
+/** 约束 2：主键必须是 UUID v7，crypto.randomUUID 返回的是 v4 */
+const RESTRICT_RANDOM_UUID = {
+  selector: "MemberExpression[object.name='crypto'][property.name='randomUUID']",
+  message:
+    '约束 2：crypto.randomUUID() 返回 UUID v4（纯随机）。主键必须用 uuid 包的 v7()，否则上云后索引会随机分裂。',
+}
+
 export default defineConfig([
   globalIgnores(['dist', 'dev-dist']),
 
@@ -67,26 +74,22 @@ export default defineConfig([
   },
 
   // ── 约束 2：禁用 crypto.randomUUID（返回 v4，不满足「时间有序」）─────────────
+  //
+  // 下面两块按「是否在 storage/indexeddb/** 内」切开：flat config 里同名规则会
+  // 替换而非合并，所以数据库实现目录那块要把 crypto 规则重复一遍。
   {
-    files: ['src/**/*.{ts,tsx}'],
+    files: ['src/storage/indexeddb/**/*.{ts,tsx}'],
     rules: {
-      'no-restricted-syntax': [
-        'error',
-        {
-          selector:
-            "MemberExpression[object.name='crypto'][property.name='randomUUID']",
-          message:
-            '约束 2：crypto.randomUUID() 返回 UUID v4（纯随机）。主键必须用 uuid 包的 v7()，否则上云后索引会随机分裂。',
-        },
-      ],
+      'no-restricted-syntax': ['error', RESTRICT_RANDOM_UUID],
     },
   },
 
-  // ── 约束 1：indexedDB 全局只允许出现在 storage/indexeddb/** ────────────────
+  // ── 约束 1：IndexedDB 只允许在 storage/indexeddb/** 内触碰 ────────────────
   {
     files: ['src/**/*.{ts,tsx}'],
     ignores: ['src/storage/indexeddb/**'],
     rules: {
+      // 裸标识符 `indexedDB`
       'no-restricted-globals': [
         'error',
         {
@@ -102,6 +105,16 @@ export default defineConfig([
           name: 'IDBFactory',
           message: '约束 1：IndexedDB API 只允许在 storage/indexeddb/** 内使用。',
         },
+      ],
+      // no-restricted-globals 只认裸标识符，`globalThis.indexedDB` / `window.indexedDB`
+      // 会从它下面绕过去，所以这里补上成员表达式的形式。
+      'no-restricted-syntax': [
+        'error',
+        RESTRICT_RANDOM_UUID,
+        ...['globalThis', 'window', 'self'].map((root) => ({
+          selector: `MemberExpression[object.name='${root}'][property.name='indexedDB']`,
+          message: `约束 1：${root}.indexedDB 同样只允许在 storage/indexeddb/** 内使用，不要用它绕过边界检查。`,
+        })),
       ],
     },
   },

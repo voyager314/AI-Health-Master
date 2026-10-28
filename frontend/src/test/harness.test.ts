@@ -1,29 +1,28 @@
 /**
  * 测试基础设施自检。
  *
- * 这条测试不验证业务逻辑，只确认测试环境本身是可用的：vitest 能跑，
- * 且 fake-indexeddb 已按 setup 装好。数据层的测试全部依赖后者，
- * 它没装上时失败信息会很难懂，所以单独立一条断言把问题挡在这里。
+ * 这个文件不验证业务逻辑，只确认测试环境本身可用：vitest 能跑、路径别名能解析、
+ * fake-indexeddb 已按 setup 装好。数据层的全部测试都依赖这三件事，
+ * 它们坏掉时的报错往往很难懂，所以单独立几条断言把问题挡在这里。
  */
-import { describe, expect, it } from 'vitest'
+import { closeDatabase, openDatabase } from '@/storage/indexeddb/db.ts'
+import { uniqueDbName } from '@/test/fixtures.ts'
+import { afterEach, describe, expect, it } from 'vitest'
+
+afterEach(() => closeDatabase())
 
 describe('测试环境', () => {
   it('vitest 可运行', () => {
     expect(1 + 1).toBe(2)
   })
 
-  it('fake-indexeddb 已装为全局，可打开并关闭数据库', async () => {
-    expect(typeof globalThis.indexedDB).toBe('object')
-    expect(typeof globalThis.IDBKeyRange).toBe('function')
-
-    const db = await new Promise<IDBDatabase>((resolve, reject) => {
-      const req = globalThis.indexedDB.open('harness-check', 1)
-      req.onupgradeneeded = () => req.result.createObjectStore('probe')
-      req.onsuccess = () => resolve(req.result)
-      req.onerror = () => reject(req.error)
-    })
-
-    expect(db.objectStoreNames.contains('probe')).toBe(true)
+  // 不直接探测 globalThis.indexedDB：那样写会绕过约束 1 的边界检查（ESLint 挡的就是
+  // globalThis.indexedDB 这种成员表达式）。改为走存储层自己的 API——fake-indexeddb
+  // 没装上时这里一样会失败，而且失败路径与真实代码路径一致。
+  it('fake-indexeddb 已装好：能经存储层打开数据库', async () => {
+    const db = await openDatabase({ dbName: uniqueDbName('harness') })
+    expect(db.version).toBeGreaterThan(0)
+    expect(db.objectStoreNames.length).toBeGreaterThan(0)
     db.close()
   })
 

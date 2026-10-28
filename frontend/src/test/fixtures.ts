@@ -1,0 +1,171 @@
+/**
+ * 测试工具：库名隔离与记录构造。
+ *
+ * 用例之间靠独立库名隔离，不重置 indexedDB 全局——测试代码因此完全不需要碰
+ * IndexedDB API，约束 1 的自检保持零豁免。
+ */
+import type {
+  AppMeta,
+  BodyMetric,
+  BusinessRecord,
+  Exercise,
+  Meal,
+  MealItem,
+  SetEntry,
+  Target,
+  Workout,
+  WorkoutExercise,
+} from '@/entities'
+import type { CreateInput } from '@/storage/indexeddb/write.ts'
+import { v7 as uuidv7 } from 'uuid'
+
+/** 给每个用例一个独立的数据库名，避免用例之间互相干扰 */
+export function uniqueDbName(label: string): string {
+  return `test-${label}-${uuidv7()}`
+}
+
+/** 构造一个 UUID v7，用于填外键 */
+export function someId(): string {
+  return uuidv7()
+}
+
+/**
+ * 构造一个固定时刻的 Date 替身。
+ *
+ * `getTimezoneOffset()` 的符号与契约里的 `tz_offset_minutes` 相反：
+ * 入参 `tzOffsetMinutes` 用契约的语义（东为正，UTC+8 → 480），
+ * 替身内部取反以模拟真实 Date 的行为。
+ */
+export function fixedDate(iso: string, tzOffsetMinutes: number): Date {
+  return {
+    toISOString: () => iso,
+    getTimezoneOffset: () => -tzOffsetMinutes,
+  } as unknown as Date
+}
+
+// ── 9 张业务表的 CreateInput 构造器 ─────────────────────────────────────────
+//
+// 每个构造器返回一条合规的最小记录，用 overrides 覆盖需要变化的字段。
+// 审计字段不在这里出现——它们由写入包装层注入，业务代码传不了（约束 3）。
+
+export function anExercise(overrides: Partial<CreateInput<Exercise>> = {}): CreateInput<Exercise> {
+  return {
+    name: '杠铃卧推',
+    pattern: 'horizontal_push',
+    primary_muscle: '胸',
+    metric_type: 'weight',
+    is_custom: false,
+    ...overrides,
+  }
+}
+
+export function aWorkout(overrides: Partial<CreateInput<Workout>> = {}): CreateInput<Workout> {
+  return {
+    started_at: '2026-10-28T10:00:00.000Z',
+    ended_at: null,
+    template_id: null,
+    note: null,
+    status: 'in_progress',
+    ...overrides,
+  }
+}
+
+export function aWorkoutExercise(
+  overrides: Partial<CreateInput<WorkoutExercise>> = {},
+): CreateInput<WorkoutExercise> {
+  return {
+    workout_id: someId(),
+    exercise_id: someId(),
+    order_index: 0,
+    ...overrides,
+  }
+}
+
+export function aSetEntry(overrides: Partial<CreateInput<SetEntry>> = {}): CreateInput<SetEntry> {
+  return {
+    workout_exercise_id: someId(),
+    weight_kg: 80,
+    reps: 8,
+    duration_sec: null,
+    rpe: null,
+    is_warmup: false,
+    input_source: 'manual',
+    confidence: null,
+    ...overrides,
+  }
+}
+
+export function aBodyMetric(
+  overrides: Partial<CreateInput<BodyMetric>> = {},
+): CreateInput<BodyMetric> {
+  return {
+    measured_at: '2026-10-28T23:00:00.000Z',
+    weight_kg: 72.4,
+    note: null,
+    ...overrides,
+  }
+}
+
+export function aMeal(overrides: Partial<CreateInput<Meal>> = {}): CreateInput<Meal> {
+  return {
+    eaten_at: '2026-10-28T12:00:00.000Z',
+    note: null,
+    photo_ref: null,
+    total_kcal: 650,
+    protein_g: 35,
+    carb_g: 80,
+    fat_g: 20,
+    ai_confidence: 'medium',
+    ...overrides,
+  }
+}
+
+export function aMealItem(overrides: Partial<CreateInput<MealItem>> = {}): CreateInput<MealItem> {
+  return {
+    meal_id: someId(),
+    name: '米饭',
+    net_weight_g: 200,
+    ratio: 1,
+    kcal: 260,
+    protein_g: 5,
+    carb_g: 58,
+    fat_g: 1,
+    source: 'ai',
+    ...overrides,
+  }
+}
+
+export function aTarget(overrides: Partial<CreateInput<Target>> = {}): CreateInput<Target> {
+  return {
+    protein_per_kg: 1.8,
+    kcal_delta: 250,
+    weight_gain_per_month: 0.3,
+    weekly_workout_target: 4,
+    effective_from: '2026-10-28T00:00:00.000Z',
+    ...overrides,
+  }
+}
+
+export function anAppMeta(overrides: Partial<CreateInput<AppMeta>> = {}): CreateInput<AppMeta> {
+  return {
+    schema_version: 1,
+    consent_at: null,
+    last_export_at: null,
+    ...overrides,
+  }
+}
+
+/** 9 张业务表各一条，顺序与 BUSINESS_STORE_NAMES 一致，供「覆盖全部业务表」的测试使用 */
+export const ALL_BUSINESS_INPUTS: ReadonlyArray<
+  readonly [string, CreateInput<BusinessRecord>]
+> = [
+  ['exercise', anExercise()],
+  ['workout', aWorkout()],
+  ['workout_exercise', aWorkoutExercise()],
+  ['set_entry', aSetEntry()],
+  ['body_metric', aBodyMetric()],
+  ['meal', aMeal()],
+  ['meal_item', aMealItem()],
+  ['target', aTarget()],
+  ['app_meta', anAppMeta()],
+] as ReadonlyArray<readonly [string, CreateInput<BusinessRecord>]>

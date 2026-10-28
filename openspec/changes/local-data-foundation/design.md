@@ -172,12 +172,28 @@ spec FR-S03.6 要求浏览器前进后退与直接 URL 访问都可用，自己�
 
 规则里仍同时保留相对路径的 pattern 作为第二道防线，防止有人绕过别名。
 
+### D15 版本探测依赖 `indexedDB.databases()`，不做回退
+
+约束 10 要求「迁移前自动导出备份」，这意味着必须在打开目标版本**之前**知道本地当前版本——否则无从判断要不要备份。实现上只用 `indexedDB.databases()`，不支持的浏览器直接抛 `UnsupportedBrowserError`。
+
+考虑过用「不指定版本打开」来探测，否决：`indexedDB.open(name)` 对一个**不存在**的库会凭空把它创建成版本 1、且没有任何 store 的空库。要清掉这个幽灵库就得调 `deleteDatabase`，而 D9 把 `deleteDatabase` 的全局出现次数守在零——它是本地优先架构下数据丢失的头号来源，为一条极少走到的探测回退引入它不划算。
+
+PRD §8 的兼容矩阵（iOS Safari 16+、Android Chrome 110+）都支持 `databases()`，且 §8 明确「不做 IE 与旧版兼容」。对过旧的浏览器给出明确报错，比静默地走一条会损坏数据的路径要好。
+
+### D16 实体契约独立为 `entities/` 层，含校验
+
+`entities/` 不只是类型，还包含枚举取值、字段规格与校验纯函数，零依赖。
+
+原因有两条。其一是约束 12：`domain/` 与 `stats/` 以实体数组为入参却禁止导入 `storage/**`，契约若定义在存储实现里，约束 12 就无法成立。其二是校验要被两处复用——落库前的写入校验，以及任务 9.1 的导入校验。后者必须在清空数据库**之前**完成（D7），所以它只能是纯函数；把规格放在零依赖的契约层，这个性质自然成立，不需要额外约束去维持。
+
+字段规格顺带承担了两条约束的运行时兜底：`uuidV7` 规格会拒绝 v4 主键（约束 2），`isoUtc` 规格会拒绝带时区偏移的时间字符串（约束 6）。未在规格中声明的字段一律视为错误——拼错的字段名若被静默写入，要到上云建表时才会暴露，那时数据已经脏了。
+
 ## 目录结构与分层边界
 
 ```
 frontend/src/
 ├─ app/                      路由、应用外壳、同意门禁、免责声明
-├─ entities/                 实体类型定义（纯类型，零运行时）
+├─ entities/                 数据契约：类型、枚举取值、字段规格与校验（零依赖）
 ├─ features/
 │   ├─ data/                 导出 / 导入 / 清空的界面与流程
 │   └─ placeholder/          后续版本页面的占位页
@@ -197,7 +213,7 @@ frontend/src/
 └─ shared/                   UI 基元与工具
 ```
 
-`entities/` 独立成层是约束 12 的必要条件：`domain/` 与 `stats/` 的纯函数以实体数组为入参，却禁止导入 `storage/**`。若把实体类型定义在 `storage/indexeddb/schema.ts` 里，领域层就无法在不违反边界的前提下拿到类型。类型是契约而非实现，因此 `entities/` 不依赖任何层，且任何层都可导入它。`storage/indexeddb/schema.ts` 只定义 store 与索引，类型从 `entities/` 取。
+`entities/` 独立成层是约束 12 的必要条件，详见 D16。`storage/indexeddb/schema.ts` 只定义 store 与索引，类型从 `entities/` 取。
 
 允许的调用方向：
 
@@ -226,12 +242,12 @@ frontend/src/
 
 | # | 约束 | 本 change 如何落地 | 自检手段 |
 | --- | --- | --- | --- |
-| 1 | 存储访问收敛到 Repository | `storage/indexeddb/**` 是唯一数据库实现目录；9 个 repo 统一 6 方法；跨层导入由 ESLint 禁止（D4） | ESLint 规则 + `npm run lint` |
-| 2 | UUID v7 + `client_id`，禁自增 | 写入包装层统一用 `uuid` 的 `v7()` 生成；ESLint 禁 `crypto.randomUUID`（D2） | ESLint 规则 + 单测断言主键符合 v7 版本位且时间有序 |
+| 1 | 存储访问收敛到 Repository | `storage/indexeddb/**` 是唯一数据库实现目录；9 个 repo 统一 6 方法；跨层导入由 ESLint 禁止（D4） | ESLint 规则 + `npm run lint`。注意裸标识符 `indexedDB` 由 `no-restricted-globals` 挡，`globalThis/window/self.indexedDB` 这类成员表达式会从它下面绕过去，另由 `no-restricted-syntax` 补挡 |
+| 2 | UUID v7 + `client_id`，禁自增 | 写入包装层统一用 `uuid` 的 `v7()` 生成；ESLint 禁 `crypto.randomUUID`（D2） | ESLint 规则 + 单测断言主键符合 v7 版本位且时间有序；字段规格的 `uuidV7` 在落库前再拒一次 v4（D16） |
 | 3 | 每条记录带 `user_id` | 由事务包装层注入 `'local'`，业务代码不可见、不可传（D3） | ESLint 禁止 `storage/**` 之外出现 `user_id` 赋值与 `'local'` 字面量 + 单测断言 9 张表均有 `user_id` 字段与索引 |
 | 4 | 每条记录带 `version` | 同上，包装层注入 `1`（D3） | 单测断言 9 张表记录均含 `version` |
 | 5 | 软删除，禁物理删除 | `repo.remove` 写 `deleted_at`；常规查询与导出排除已删除 | 单测断言 `remove` 后按主键仍可取到记录；两处例外见「偏离留痕」 |
-| 6 | 时间统一 UTC + 独立 offset，周界单点实现 | `timeWindow.ts` 为唯一实现（D5）；写入包装层统一生成 UTC ISO 与 `tz_offset_minutes` | 全局搜索日界/周界算术只应命中 `timeWindow.ts` + `timeWindow` 单测穷举跨时区与跨零点样本 |
+| 6 | 时间统一 UTC + 独立 offset，周界单点实现 | `timeWindow.ts` 为唯一实现（D5）；写入包装层统一生成 UTC ISO 与 `tz_offset_minutes` | 全局搜索日界/周界算术只应命中 `timeWindow.ts` + `timeWindow` 单测穷举跨时区与跨零点样本；字段规格的 `isoUtc` 在落库前拒绝带偏移的时间字符串 |
 | 7 | 图片存独立 blob store，记录只存 ref | `blob` store 独立；业务记录只存 `local://<uuid>` 字符串；解析返回「命中/已清理/格式非法」三态 | 单测断言业务记录无 blob 与 base64 字段 + 三态解析各有测试 |
 | 8 | 查询只用单字段索引 + 内存过滤 | 选用 `idb` 而非 Dexie，使复合游标在 Repository 里不自然（D1） | 逐个 repo 的查询方法 review：能否写成一条单表 `SELECT ... WHERE` |
 | 9 | 写操作走统一 Command 层 | `applyCommand` 是唯一写入口；写方法仅经 `storage/internal` 暴露给 `commands/**`（D3/D4） | TypeScript 编译错误（页面调 `put` 不通过类型检查）+ ESLint 限制 `storage/internal` 导入者 + 单测断言每次 command 产生一条 `pending_ops` |

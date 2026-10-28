@@ -8,9 +8,9 @@
 
 ## 2. 数据库与实体结构
 
-- [ ] 2.1 定义 12 个 store 的 schema 与索引：9 张业务表 + `pending_ops` / `blob` / `analytics_event`；9 张业务表均建 `user_id` 索引；`exercise.pattern` 枚举为 9 类（含「孤立」，无「负重行走」）。完成判据：单测断言 12 个 store 存在、9 张业务表均有 `user_id` 索引、`pattern` 非法值被拒绝
-- [ ] 2.2 实现数据库打开与 `schema_version` 读取（`storage/indexeddb/db.ts`），`schema_version` 从 1 起步。完成判据：单测覆盖「版本相同不迁移」与「版本高于期望时拒绝启动」两条路径
-- [ ] 2.3 实现写入包装层：统一注入 `id`（`uuid` 的 `v7()`）、`client_id`、`user_id='local'`、`version=1`、`created_at`/`updated_at`、UTC ISO 时间与 `tz_offset_minutes`。完成判据：单测断言连续创建的两条记录主键字典序递增且符合 v7 版本位；断言未显式传 `user_id` 的载荷落库后 `user_id` 为 `'local'`；断言更新只刷新 `updated_at`
+- [x] 2.1 定义 12 个 store 的 schema 与索引：9 张业务表 + `pending_ops` / `blob` / `analytics_event`；9 张业务表均建 `user_id` 索引；`exercise.pattern` 枚举为 9 类（含「孤立」，无「负重行走」）。完成判据：单测断言 12 个 store 存在、9 张业务表均有 `user_id` 索引、`pattern` 非法值被拒绝
+- [x] 2.2 实现数据库打开与 `schema_version` 读取（`storage/indexeddb/db.ts`），`schema_version` 从 1 起步。完成判据：单测覆盖「版本相同不迁移」与「版本高于期望时拒绝启动」两条路径
+- [x] 2.3 实现写入包装层：统一注入 `id`（`uuid` 的 `v7()`）、`client_id`、`user_id='local'`、`version=1`、`created_at`/`updated_at`、UTC ISO 时间与 `tz_offset_minutes`。完成判据：单测断言连续创建的两条记录主键字典序递增且符合 v7 版本位；断言未显式传 `user_id` 的载荷落库后 `user_id` 为 `'local'`；断言更新只刷新 `updated_at`
 
 ## 3. Repository 层
 
