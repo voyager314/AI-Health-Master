@@ -16,6 +16,12 @@
     "noEmit": true,
     "jsx": "react-jsx",
 
+    /* 路径别名，与 vite.config.ts 的 resolve.alias 保持一致（design.md D14）。
+       不设 baseUrl：TS 6 已废弃它，而 moduleResolution=bundler 下 paths 相对本文件解析。 */
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+
     /* Linting */
     "noUnusedLocals": true,
     "noUnusedParameters": true,

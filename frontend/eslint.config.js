@@ -5,8 +5,54 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
+/*
+ * 分层边界的机器化强制。
+ *
+ * 规则来源：openspec/changes/local-data-foundation/design.md「目录结构与分层边界」。
+ * 目的是让违反 PRD §10.5 可迁移性约束的代码在 `npm run lint` 就失败，而不是靠人记得。
+ * 其中约束 1 / 3 / 9 是硬性一票否决项。
+ *
+ * 注意 ESLint flat config 的语义：同名规则在后面的配置块里会**替换**而非合并前面的。
+ * 所以每个文件集必须只被一个 no-restricted-imports 块匹配，且该块列出它的完整禁止清单。
+ */
+
+/**
+ * 把一个层路径展开成 pattern 组。
+ *
+ * no-restricted-imports 按导入字符串做 minimatch，所以要同时覆盖：
+ *   - 别名写法：`@/storage/indexeddb`、`@/storage/indexeddb/db`
+ *   - 相对路径写法：`../storage/indexeddb`、`../../storage/indexeddb/db`（绕过别名的第二道防线）
+ */
+const layer = (p) => [`@/${p}`, `@/${p}/**`, `**/${p}`, `**/${p}/**`]
+
+/** 单个文件（不是目录），如 storage/internal.ts */
+const file = (p) => [`@/${p}`, `**/${p}`]
+
+const DB_IMPL = layer('storage/indexeddb')
+const STORAGE_ANY = layer('storage')
+const STORAGE_INTERNAL = file('storage/internal')
+const STORAGE_TELEMETRY = file('storage/telemetry')
+const COMMANDS = layer('commands')
+const TELEMETRY = layer('telemetry')
+const UI_LAYERS = [...layer('app'), ...layer('features'), ...layer('shared')]
+
+const MSG = {
+  dbImpl:
+    '约束 1：数据库实现只允许被 storage/** 内部导入。读数据用 @/storage（只读视图），写数据用 @/commands。',
+  internal:
+    '约束 9：storage/internal 含写方法，只允许 commands/** 导入。应用层写数据必须经 applyCommand。',
+  telemetryEntry:
+    'design.md D13：storage/telemetry 是埋点的专用窄入口，只允许 telemetry/** 导入。',
+  pure:
+    '约束 12：domain/ 与 stats/ 必须是纯函数——入参为实体数组，不读存储、不触发副作用。',
+  entities:
+    '约束 12：entities/ 是零依赖的类型层。它被所有层导入，自己不能导入任何层，否则会形成环。',
+  noReachUp: '分层方向：下层不得反向导入上层。',
+}
+
 export default defineConfig([
-  globalIgnores(['dist']),
+  globalIgnores(['dist', 'dev-dist']),
+
   {
     files: ['**/*.{ts,tsx}'],
     extends: [
@@ -17,6 +63,170 @@ export default defineConfig([
     ],
     languageOptions: {
       globals: globals.browser,
+    },
+  },
+
+  // ── 约束 2：禁用 crypto.randomUUID（返回 v4，不满足「时间有序」）─────────────
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            "MemberExpression[object.name='crypto'][property.name='randomUUID']",
+          message:
+            '约束 2：crypto.randomUUID() 返回 UUID v4（纯随机）。主键必须用 uuid 包的 v7()，否则上云后索引会随机分裂。',
+        },
+      ],
+    },
+  },
+
+  // ── 约束 1：indexedDB 全局只允许出现在 storage/indexeddb/** ────────────────
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/storage/indexeddb/**'],
+    rules: {
+      'no-restricted-globals': [
+        'error',
+        {
+          name: 'indexedDB',
+          message:
+            '约束 1：IndexedDB API 只允许在 storage/indexeddb/** 内使用。其余各层经 Repository 访问存储。',
+        },
+        {
+          name: 'IDBKeyRange',
+          message: '约束 1：IndexedDB API 只允许在 storage/indexeddb/** 内使用。',
+        },
+        {
+          name: 'IDBFactory',
+          message: '约束 1：IndexedDB API 只允许在 storage/indexeddb/** 内使用。',
+        },
+      ],
+    },
+  },
+
+  // ── 以下每块是一个文件集的完整导入禁止清单（不可拆开，见文件头注释）──────────
+
+  // entities/：零依赖的类型层
+  {
+    files: ['src/entities/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                ...STORAGE_ANY,
+                ...COMMANDS,
+                ...TELEMETRY,
+                ...UI_LAYERS,
+                ...layer('domain'),
+                ...layer('stats'),
+              ],
+              message: MSG.entities,
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  // domain/ 与 stats/：纯函数，零存储依赖
+  {
+    files: ['src/domain/**/*.{ts,tsx}', 'src/stats/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [...STORAGE_ANY, ...COMMANDS, ...TELEMETRY],
+              message: MSG.pure,
+            },
+            { group: UI_LAYERS, message: MSG.noReachUp },
+          ],
+        },
+      ],
+    },
+  },
+
+  // app/、features/、shared/：读经 @/storage，写经 @/commands
+  {
+    files: [
+      'src/app/**/*.{ts,tsx}',
+      'src/features/**/*.{ts,tsx}',
+      'src/shared/**/*.{ts,tsx}',
+    ],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            { group: DB_IMPL, message: MSG.dbImpl },
+            { group: STORAGE_INTERNAL, message: MSG.internal },
+            { group: STORAGE_TELEMETRY, message: MSG.telemetryEntry },
+          ],
+        },
+      ],
+    },
+  },
+
+  // commands/：唯一可导入 storage/internal 的层
+  {
+    files: ['src/commands/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            { group: DB_IMPL, message: MSG.dbImpl },
+            { group: STORAGE_TELEMETRY, message: MSG.telemetryEntry },
+            { group: UI_LAYERS, message: MSG.noReachUp },
+          ],
+        },
+      ],
+    },
+  },
+
+  // telemetry/：唯一可导入 storage/telemetry 的层
+  {
+    files: ['src/telemetry/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            { group: DB_IMPL, message: MSG.dbImpl },
+            { group: STORAGE_INTERNAL, message: MSG.internal },
+            { group: [...UI_LAYERS, ...COMMANDS], message: MSG.noReachUp },
+          ],
+        },
+      ],
+    },
+  },
+
+  // storage/：存储实现本身，只禁止反向导入上层
+  {
+    files: ['src/storage/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            { group: [...UI_LAYERS, ...COMMANDS, ...TELEMETRY], message: MSG.noReachUp },
+          ],
+        },
+      ],
+    },
+  },
+
+  // test/：测试基础设施不受分层限制（它要能装配任意层）
+  {
+    files: ['src/test/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': 'off',
     },
   },
 ])
