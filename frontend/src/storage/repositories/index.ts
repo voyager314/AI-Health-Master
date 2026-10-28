@@ -1,14 +1,48 @@
 /**
- * storage/repositories —— 每实体一个 Repository
+ * 9 张业务表的 Repository 装配。
  *
- * 每个 Repository 统一暴露 6 个方法：list / get / put / remove / query / clear。
- * `remove` 写 `deleted_at` 做软删除，禁止物理删除（约束 5）。
+ * 这是**唯一的存储实现装配点**：整个应用里只有这个文件知道当前用的是 IndexedDB。
+ * 换 MySQL 时新增 `storage/mysql/repository.ts`，把下面的工厂换掉即可，
+ * 契约（./types.ts）与全部调用方都不动（约束 1）。
  *
- * 查询只允许「按主键或单字段索引取数 + 内存过滤」，禁止复合游标——
- * 每个查询都必须能等价表达为一条单表 `SELECT ... WHERE`（约束 8）。
- *
- * 允许导入：entities/、storage/indexeddb/
- * 可被导入：仅 storage/**
+ * 每张表恰有一个 Repository，接口形状由 `RepositorySet` 在编译期钉住——
+ * 漏掉一张表或多出一张表都过不了类型检查。
  */
+import { BUSINESS_STORE_NAMES, type BusinessStoreName } from '@/entities'
+import {
+  createIndexedDbRepository,
+  type DbProvider,
+} from '@/storage/indexeddb/repository.ts'
+import type { ReadableRepositorySet, RepositorySet } from './types.ts'
 
-export {}
+/**
+ * 按当前存储实现装配出全部 9 个 Repository。
+ *
+ * `getDb` 可注入：测试据此把每个用例指向独立的数据库名，不必重置 indexedDB 全局。
+ */
+export function createRepositories(getDb?: DbProvider): RepositorySet {
+  const entries = BUSINESS_STORE_NAMES.map((name) => [
+    name,
+    createIndexedDbRepository(name, getDb),
+  ])
+  // 键集合与 BUSINESS_STORE_NAMES 完全一致，恰好构成 RepositorySet；
+  // 动态构造无法让 TypeScript 自行推出这一点，故在此断言。
+  return Object.fromEntries(entries) as RepositorySet
+}
+
+/** 应用运行时使用的 Repository 集合，指向默认数据库 */
+export const repositories: RepositorySet = createRepositories()
+
+/** 同一批实例的只读视图。类型收窄，运行时不额外包装 */
+export const readableRepositories: ReadableRepositorySet = repositories
+
+/** 按 store 名取单个 Repository，供需要泛型遍历的场景（导出、导入、清空）使用 */
+export function repositoryFor<N extends BusinessStoreName>(
+  name: N,
+  set: RepositorySet = repositories,
+) {
+  return set[name]
+}
+
+export type { DbProvider }
+export * from './types.ts'

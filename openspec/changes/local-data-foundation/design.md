@@ -188,6 +188,22 @@ PRD §8 的兼容矩阵（iOS Safari 16+、Android Chrome 110+）都支持 `data
 
 字段规格顺带承担了两条约束的运行时兜底：`uuidV7` 规格会拒绝 v4 主键（约束 2），`isoUtc` 规格会拒绝带时区偏移的时间字符串（约束 6）。未在规格中声明的字段一律视为错误——拼错的字段名若被静默写入，要到上云建表时才会暴露，那时数据已经脏了。
 
+### D17 Repository 的契约与实现分开放，装配点只有一处
+
+`storage/repositories/types.ts` 放契约（存储无关），`storage/indexeddb/repository.ts` 放 IndexedDB 实现，`storage/repositories/index.ts` 做装配。
+
+原先把「每实体一个 repo」整体放在 `repositories/` 下，实现时才发现它站不住：repo 实现必然要调 `IDBKeyRange`、`getAllFromIndex`，而这些只允许出现在 `storage/indexeddb/**`。这个冲突暴露的不是规则太严，而是划分本身混淆了契约与实现——「换存储实现时只替换实现」要成立，前提就是两者本来是分开的。拆开之后替换点是单一文件：新增 `storage/mysql/repository.ts`，改 `repositories/index.ts` 一行装配，调用方与契约都不动。
+
+查询接口的形状本身就是约束 8 的强制手段。`QuerySpec` 只能表达「一个单字段索引取数（等值或闭区间）+ 一个内存过滤函数」，复合游标在这个 API 里写不出来。这比「逐个 review 查询方法能否翻成单表 SQL」可靠——写不出来就不用检查。
+
+### D18 审计注入按 store 名做泛型键，不靠实体类型推导
+
+`withAuditForCreate('exercise', input, now)` 的第一个参数是 store 名。
+
+更自然的写法是 `withAuditForCreate(input, now)` 靠入参推导实体类型，但 `CreateInput<T> = Omit<T, keyof AuditFields>` 不是可反推的推导位置：传对象字面量时 `T` 会退化成 `BusinessRecord` 联合类型，调用方必须记得写 `withAuditForCreate<Exercise>(...)`。忘了不会当场失败，而是在后面的 `put` 调用上报「BusinessRecord 不能赋值给 Exercise」——指错地方，且每个命令 handler 都要记一次。
+
+改用 store 名这个字面量做泛型键后推导必然成功，且 store 名与字段形状不匹配时错误落在构造点。
+
 ## 目录结构与分层边界
 
 ```
@@ -205,9 +221,14 @@ frontend/src/
 │   ├─ indexeddb/            ← 唯一允许出现 IndexedDB API 的目录
 │   │   ├─ db.ts
 │   │   ├─ schema.ts
+│   │   ├─ write.ts          审计字段注入与落库校验
+│   │   ├─ repository.ts     Repository 契约的 IndexedDB 实现
 │   │   └─ migrations/
-│   ├─ repositories/         每实体一个 repo，统一 6 方法
-│   ├─ internal.ts           完整接口（含写方法），仅 commands/** 可导入
+│   ├─ repositories/
+│   │   ├─ types.ts          Repository 契约（存储无关）
+│   │   └─ index.ts          ← 装配点：整个应用只有这里知道用的是 IndexedDB
+│   ├─ internal.ts           完整接口（含写方法）+ 审计注入，仅 commands/** 可导入
+│   ├─ telemetry.ts          埋点追加的窄入口，仅 telemetry/** 可导入
 │   └─ index.ts              只读视图，应用层用这个
 ├─ telemetry/                埋点记录接口
 └─ shared/                   UI 基元与工具
@@ -249,7 +270,7 @@ frontend/src/
 | 5 | 软删除，禁物理删除 | `repo.remove` 写 `deleted_at`；常规查询与导出排除已删除 | 单测断言 `remove` 后按主键仍可取到记录；两处例外见「偏离留痕」 |
 | 6 | 时间统一 UTC + 独立 offset，周界单点实现 | `timeWindow.ts` 为唯一实现（D5）；写入包装层统一生成 UTC ISO 与 `tz_offset_minutes` | 全局搜索日界/周界算术只应命中 `timeWindow.ts` + `timeWindow` 单测穷举跨时区与跨零点样本；字段规格的 `isoUtc` 在落库前拒绝带偏移的时间字符串 |
 | 7 | 图片存独立 blob store，记录只存 ref | `blob` store 独立；业务记录只存 `local://<uuid>` 字符串；解析返回「命中/已清理/格式非法」三态 | 单测断言业务记录无 blob 与 base64 字段 + 三态解析各有测试 |
-| 8 | 查询只用单字段索引 + 内存过滤 | 选用 `idb` 而非 Dexie，使复合游标在 Repository 里不自然（D1） | 逐个 repo 的查询方法 review：能否写成一条单表 `SELECT ... WHERE` |
+| 8 | 查询只用单字段索引 + 内存过滤 | `QuerySpec` 的形状让复合游标无法表达（D17）；选用 `idb` 而非 Dexie，避免链式查询 DSL 的诱惑（D1） | API 形状即强制：写不出复合游标。另有单测覆盖等值取数、区间取数与内存过滤三种形态 |
 | 9 | 写操作走统一 Command 层 | `applyCommand` 是唯一写入口；写方法仅经 `storage/internal` 暴露给 `commands/**`（D3/D4） | TypeScript 编译错误（页面调 `put` 不通过类型检查）+ ESLint 限制 `storage/internal` 导入者 + 单测断言每次 command 产生一条 `pending_ops` |
 | 10 | `schema_version` + 顺序迁移 + 迁移前备份 | 启动序列先备份再升级（D6）；`migrations` 为一版一条的有序数组 | 迁移链单测：对每个版本构造样本断言升级结果；断言升级路径必产生备份文件 |
 | 11 | 导出 JSON = 内部结构，可反向导入 | 导出不做字段转换；导入先全量校验再单事务替换（D7） | **往返一致性自动化测试**（D10），覆盖 9 张业务表逐字段断言 |

@@ -14,9 +14,9 @@
 
 ## 3. Repository 层
 
-- [ ] 3.1 实现 Repository 基础能力与统一 6 方法形状（`list/get/put/remove/query/clear`），`remove` 写 `deleted_at`，常规查询排除已软删除记录。完成判据：单测断言 `remove` 后按主键仍可取到记录、但 `list` 不返回它
-- [ ] 3.2 为 9 张业务表各实现一个 Repository。完成判据：单测断言每张表恰一个 repo 且 6 方法签名形状一致；逐个 review 查询方法能写成一条单表 `SELECT ... WHERE`（约束 8）
-- [ ] 3.3 实现导出路径分层：`storage/index.ts` 只导出只读视图，`storage/internal.ts` 导出含写方法的完整接口。完成判据：写一个页面层文件调用 `repo.put` 的临时用例，`tsc -b` 报类型错误；验证后删除该用例
+- [x] 3.1 实现 Repository 基础能力与统一 6 方法形状（`list/get/put/remove/query/clear`），`remove` 写 `deleted_at`，常规查询排除已软删除记录。完成判据：单测断言 `remove` 后按主键仍可取到记录、但 `list` 不返回它
+- [x] 3.2 为 9 张业务表各实现一个 Repository。完成判据：单测断言每张表恰一个 repo 且 6 方法签名形状一致；查询接口的形状使复合游标无法表达（约束 8，见 design.md D17）
+- [x] 3.3 实现导出路径分层：`storage/index.ts` 只导出只读视图，`storage/internal.ts` 导出含写方法的完整接口。完成判据：写一个页面层文件调用 `repo.put` 的临时用例，`tsc -b` 报类型错误；验证后删除该用例
 
 ## 4. Command 层
 
