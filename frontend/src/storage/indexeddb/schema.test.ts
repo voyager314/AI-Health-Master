@@ -71,7 +71,7 @@ describe('动作模式枚举', () => {
   it('非法的 pattern 取值被校验拒绝', () => {
     const now = createNow()
 
-    const legal = withAuditForCreate(anExercise({ pattern: 'isolation' }), now)
+    const legal = withAuditForCreate('exercise', anExercise({ pattern: 'isolation' }), now)
     expect(validateRecord(RECORD_SPECS.exercise, legal)).toEqual([])
 
     // 负重行走已从枚举中移除，写进来必须被拒
@@ -84,7 +84,7 @@ describe('动作模式枚举', () => {
 
   it('写进真实数据库的记录能按 pattern 索引取回', async () => {
     const db = await openDatabase({ dbName: uniqueDbName('pattern-query') })
-    const record = withAuditForCreate(anExercise({ pattern: 'squat' }), createNow())
+    const record = withAuditForCreate('exercise', anExercise({ pattern: 'squat' }), createNow())
     await db.put('exercise', record)
 
     const found = await db.getAllFromIndex('exercise', 'pattern', 'squat')

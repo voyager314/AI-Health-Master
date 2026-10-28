@@ -10,6 +10,8 @@
 import type {
   AuditFields,
   BusinessRecord,
+  BusinessRecordMap,
+  BusinessStoreName,
   IsoUtc,
   StoreName,
   ValidationIssue,
@@ -89,14 +91,21 @@ export type UpdateInput<T extends BusinessRecord> = Partial<CreateInput<T>>
 /**
  * 注入全部审计字段，生成一条可落库的新记录。
  *
+ * 第一个参数是 store 名而不是靠类型参数指定实体：`Omit<T, keyof AuditFields>` 不是
+ * 可反推的推导位置，传对象字面量时 T 会退化成 BusinessRecord 联合类型，调用方必须
+ * 记得写 `withAuditForCreate<Exercise>(...)`——忘了的话报错会落在后面的 put 调用上，
+ * 指错地方。用 store 名这个字面量做泛型键，推导必然成功，而且构造点与目标表绑定。
+ *
  * `id` 用 UUID v7 而非 `crypto.randomUUID()`（后者是 v4，纯随机）：v7 时间有序，
  * 主键天然可近似按时间排序，上云后也不会让 B 树索引随机分裂（约束 2）。
  * `client_id` 本期与 `id` 同值，上云后服务端靠它为离线重放去重。
  */
-export function withAuditForCreate<T extends BusinessRecord>(
-  input: CreateInput<T>,
+export function withAuditForCreate<N extends BusinessStoreName>(
+  store: N,
+  input: CreateInput<BusinessRecordMap[N]>,
   moment: Now,
-): T {
+): BusinessRecordMap[N] {
+  void store // 仅用于锁定泛型，运行时不需要
   const id = uuidv7()
   // cast 的原因：TypeScript 无法从 Omit<T, keyof AuditFields> + AuditFields 推回 T，
   // 但字段集合在类型上是完备的——补齐后的对象恰好就是 T。
@@ -110,7 +119,7 @@ export function withAuditForCreate<T extends BusinessRecord>(
     updated_at: moment.iso,
     deleted_at: null,
     tz_offset_minutes: moment.tzOffsetMinutes,
-  } as unknown as T
+  } as unknown as BusinessRecordMap[N]
 }
 
 /**
