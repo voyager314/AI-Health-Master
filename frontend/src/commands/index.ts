@@ -11,17 +11,19 @@
  * 允许导入：entities/、storage/internal、storage/、domain/、stats/
  * 可被导入：app/、features/
  */
+import { markExported } from './appMeta.ts'
 import { createCommandBus } from './bus.ts'
 import type { CommandDefinition } from './types.ts'
 
 /**
  * 应用的全部命令定义。
  *
- * 新增实体时必须先在这里登记命令，再接页面（约束 9 与 FR-S06.6）。
- * 本 change 只交付地基，业务命令随各自的功能落地：训练记录与体重在
- * change `training-log-and-weight`，饮食在 v0.3。
+ * 用显式数组而不是让各模块自行注册：漏登记不会在启动时报错，而要等用户走到
+ * 那条路径才变成「未注册的命令类型」。放进这个数组后，漏登记就是一处未使用的导出。
  */
-export const COMMANDS: readonly CommandDefinition<never, unknown>[] = []
+export const COMMANDS: readonly CommandDefinition<never, unknown>[] = [
+  markExported as CommandDefinition<never, unknown>,
+]
 
 const bus = createCommandBus({ definitions: COMMANDS })
 

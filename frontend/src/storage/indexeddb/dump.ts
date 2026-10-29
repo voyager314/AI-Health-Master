@@ -9,6 +9,7 @@
  * 升级之前，那时库里的结构属于旧版本，可能比现在少几张表。
  */
 import type { IDBPDatabase } from 'idb'
+import { getDatabase, type DbProvider } from './db.ts'
 import type { AppDb } from './schema.ts'
 
 /**
@@ -52,4 +53,16 @@ export async function dumpDatabase(
   }
 
   return { schema_version: db.version, exported_at: takenAt, records }
+}
+
+/**
+ * 用默认连接取快照。
+ *
+ * `getDb` 可注入：测试据此指向自己那个库，不必碰共享连接的状态。
+ */
+export async function snapshotDatabase(
+  takenAt: string,
+  getDb: DbProvider = () => getDatabase(),
+): Promise<DatabaseSnapshot> {
+  return dumpDatabase(await getDb(), takenAt)
 }

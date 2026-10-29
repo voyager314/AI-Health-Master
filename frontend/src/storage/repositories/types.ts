@@ -65,11 +65,14 @@ export interface ListOptions {
  * 只读视图：应用层经 `@/storage` 拿到的就是这个形状。
  *
  * 写方法不在这里，所以页面写 `exerciseRepo.put(...)` 是 TypeScript 编译错误
- * 而不是一条需要人去发现的 lint 警告（约束 9，见 design.md D4）。
+ * 而不是一条需要人去发现的 lint 警告。
+ *
+ * 读方法可选接受事务句柄。命令 handler 必须传它：在事务内 await 一个走独立
+ * 连接的读取会把控制权交回事件循环，外层事务随即提交，后续写入就失败了。
  */
 export interface ReadableRepository<N extends BusinessStoreName> {
   /** 列出本用户未软删除的记录。等价于 WHERE user_id = ? AND deleted_at IS NULL */
-  list(options?: ListOptions): Promise<Row<N>[]>
+  list(options?: ListOptions, tx?: WriteTx): Promise<Row<N>[]>
 
   /**
    * 按主键取单条，**包含**已软删除的记录。
@@ -77,9 +80,9 @@ export interface ReadableRepository<N extends BusinessStoreName> {
    * 与 list 不同是有意的：历史纠错、导入去重、「这条到底删没删」都需要看到墓碑。
    * 要排除软删除的场景请用 list / query。
    */
-  get(id: Uuid): Promise<Row<N> | undefined>
+  get(id: Uuid, tx?: WriteTx): Promise<Row<N> | undefined>
 
-  query(spec: QuerySpec<N>): Promise<Row<N>[]>
+  query(spec: QuerySpec<N>, tx?: WriteTx): Promise<Row<N>[]>
 }
 
 /**

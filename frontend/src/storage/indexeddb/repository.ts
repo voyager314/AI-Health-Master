@@ -47,18 +47,44 @@ function toKeyRange<N extends BusinessStoreName>(
  * 事务句柄对契约层不透明（见 types.ts 的 WriteTx），这里是唯一一处还原它的地方。
  *
  * idb 的事务类型要求在泛型里列出参与的 store 名，而 Repository 是按单表泛型化的，
- * 两者对不上；收窄到实际用到的 `objectStore` 能力即可。
+ * 两者对不上；收窄到实际用到的能力即可。读能力也在这里——命令 handler 若改用
+ * 独立连接读取，await 会让外层事务提交。
+ *
+ * 索引取数用 `index(name).getAll()` 而不是 `getAllFromIndex`：后者是数据库级连接上
+ * 的便捷方法，事务里的 store 不提供。
  */
-interface TxLike {
-  objectStore(name: string): {
-    put(value: unknown): Promise<unknown>
-    get(key: string): Promise<unknown>
-    clear(): Promise<unknown>
-  }
+interface TxObjectStore {
+  put(value: unknown): Promise<unknown>
+  get(key: string): Promise<unknown>
+  getAll(): Promise<unknown[]>
+  index(name: string): { getAll(query?: IDBKeyRange): Promise<unknown[]> }
+  clear(): Promise<unknown>
 }
 
-function storeFromTx<N extends BusinessStoreName>(tx: WriteTx, store: N) {
+interface TxLike {
+  objectStore(name: string): TxObjectStore
+}
+
+function storeFromTx<N extends BusinessStoreName>(tx: WriteTx, store: N): TxObjectStore {
   return (tx as unknown as TxLike).objectStore(store)
+}
+
+/** 事务内的取数，与事务外的取数保持同一套筛选语义 */
+async function queryFromTx<N extends BusinessStoreName>(
+  tx: WriteTx,
+  store: N,
+  spec: QuerySpec<N>,
+): Promise<Row<N>[]> {
+  const os = storeFromTx(tx, store)
+  const range = toKeyRange(spec)
+  const rows = (
+    spec.index ? await os.index(spec.index).getAll(range) : await os.getAll()
+  ) as Row<N>[]
+
+  let out = spec.includeDeleted ? rows : rows.filter((r) => r.deleted_at === null)
+  if (spec.filter) out = out.filter(spec.filter)
+  if (spec.limit !== undefined) out = out.slice(0, spec.limit)
+  return out
 }
 
 export function createIndexedDbRepository<N extends BusinessStoreName>(
@@ -67,10 +93,12 @@ export function createIndexedDbRepository<N extends BusinessStoreName>(
 ): Repository<N> {
   type R = Row<N>
 
-  async function query(spec: QuerySpec<N>): Promise<R[]> {
+  async function query(spec: QuerySpec<N>, tx?: WriteTx): Promise<R[]> {
+    if (tx) return queryFromTx(tx, store, spec)
+
     const db = await getDb()
 
-    // 取数：只用主键全表扫，或单个单字段索引。没有第三种形态（约束 8）
+    // 取数：只用主键全表扫，或单个单字段索引。没有第三种形态
     const rows = (
       spec.index
         ? await db.getAllFromIndex(store, spec.index as never, toKeyRange(spec) as never)
@@ -84,18 +112,23 @@ export function createIndexedDbRepository<N extends BusinessStoreName>(
     return out
   }
 
-  async function list(options: ListOptions = {}): Promise<R[]> {
+  async function list(options: ListOptions = {}, tx?: WriteTx): Promise<R[]> {
     // 默认按 user_id 索引取数，而不是全表扫。本期 user_id 恒为 'local'，结果一样，
     // 但查询形状已经是上云后需要的那条：WHERE user_id = ? AND deleted_at IS NULL
-    return query({
-      index: 'user_id' as never,
-      equals: LOCAL_USER_ID,
-      includeDeleted: options.includeDeleted,
-      limit: options.limit,
-    })
+    return query(
+      {
+        index: 'user_id' as never,
+        equals: LOCAL_USER_ID,
+        includeDeleted: options.includeDeleted,
+        limit: options.limit,
+      },
+      tx,
+    )
   }
 
-  async function get(id: Uuid): Promise<R | undefined> {
+  async function get(id: Uuid, tx?: WriteTx): Promise<R | undefined> {
+    if (tx) return (await storeFromTx(tx, store).get(id)) as R | undefined
+
     const db = await getDb()
     // 不过滤 deleted_at：按主键取单条要能看到墓碑（见 types.ts 的说明）
     return (await db.get(store, id)) as R | undefined
