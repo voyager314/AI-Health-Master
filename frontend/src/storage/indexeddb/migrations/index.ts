@@ -1,5 +1,5 @@
 /**
- * schema 顺序迁移脚本（约束 10）。
+ * schema 顺序迁移脚本。
  *
  * 一个版本恰一条迁移，按版本号升序执行。`LATEST_SCHEMA_VERSION` 从数组长度推导，
  * 不单独声明——否则「声明的版本号」与「迁移条数」会漂移。
@@ -30,7 +30,7 @@ export interface SchemaWriter {
 
 export interface Migration {
   readonly version: number
-  /** 必须同步执行——IndexedDB 的升级事务不能跨 await（见 design.md Context） */
+  /** 必须同步执行——IndexedDB 的升级事务会在控制权交回事件循环时提交，不能跨 await */
   readonly up: (db: SchemaWriter) => void
 }
 
@@ -41,7 +41,7 @@ export const MIGRATIONS: readonly Migration[] = [
       for (const store of STORES) {
         const os = db.createObjectStore(store.name, { keyPath: store.keyPath })
         for (const index of store.indexes) {
-          // 索引名与被索引字段同名：约束 8 只允许单字段索引，不存在需要另起名字的复合索引
+          // 索引名与被索引字段同名：只允许单字段索引，不存在需要另起名字的复合索引
           os.createIndex(index, index)
         }
       }
@@ -52,7 +52,7 @@ export const MIGRATIONS: readonly Migration[] = [
 /**
  * 校验迁移链是「一版一条、从 1 开始、无空缺无重复」。
  *
- * 导出成函数而非只在模块加载时跑，是为了让任务 7.1 的测试能直接断言这条规则，
+ * 导出成函数而非只在模块加载时跑，是为了让测试能直接断言这条规则，
  * 而不是靠「import 时没抛错」来间接验证。
  */
 export function validateMigrationChain(

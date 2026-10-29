@@ -2,7 +2,7 @@
  * 12 个 store 的记录类型与枚举取值。
  *
  * 9 张业务表（带 AuditFields）+ 3 个非业务 store（pending_ops / blob / analytics_event）。
- * 字段来自 PRD §10.1，审计字段契约见 common.ts。
+ * 审计字段的契约定义在 common.ts 的 `AuditFields`。
  */
 import type { AuditFields, IsoUtc, StorageRef, UserId, Uuid } from './common.ts'
 
@@ -11,9 +11,8 @@ import type { AuditFields, IsoUtc, StorageRef, UserId, Uuid } from './common.ts'
 /**
  * 动作模式，共 9 类。
  *
- * PRD §三 原写「只保留前 8 类」（即砍掉负重行走与孤立），但 FR-T04 的验收例子
- * 「飞鸟20公斤12个3组」用的正是孤立动作，与之自相矛盾；且增肌主用户群离不开
- * 弯举/侧平举/飞鸟/臂屈伸。评审拍板：保留孤立，只砍负重行走。
+ * 只砍掉负重行走，保留孤立动作：增肌主用户群离不开弯举/侧平举/飞鸟/臂屈伸，
+ * 语音录入「飞鸟20公斤12个3组」这类句子正是要靠孤立类别才能归类。
  */
 export const EXERCISE_PATTERNS = [
   'horizontal_push',
@@ -28,24 +27,24 @@ export const EXERCISE_PATTERNS = [
 ] as const
 export type ExercisePattern = (typeof EXERCISE_PATTERNS)[number]
 
-/** 计量方式：负重类按重量×次数，计时类按秒（PRD §12-13 禁止复用重量字段） */
+/** 计量方式：负重类按重量×次数，计时类按秒。两种计量各有自己的字段，不复用重量字段表达时长 */
 export const METRIC_TYPES = ['weight', 'timed'] as const
 export type MetricType = (typeof METRIC_TYPES)[number]
 
-/** 组记录的录入来源，用于统计语音记录占比（PRD §2.3） */
+/** 组记录的录入来源，用于统计语音记录占比 */
 export const INPUT_SOURCES = ['manual', 'voice'] as const
 export type InputSource = (typeof INPUT_SOURCES)[number]
 
 /**
  * 训练单的持久化状态。
  *
- * PRD §9.1 的状态机有 4 态，但只有 2 态需要落库：「未开始」时还没有记录，
- * 「已删除」由 `deleted_at` 表达（约束 5 的软删除）。
+ * 训练单在界面上有「未开始、进行中、已保存、已删除」四态，但只有 2 态需要落库：
+ * 「未开始」时还没有记录，「已删除」由 `deleted_at` 表达，记录本身仍保留。
  */
 export const WORKOUT_STATUSES = ['in_progress', 'saved'] as const
 export type WorkoutStatus = (typeof WORKOUT_STATUSES)[number]
 
-/** 估算值的置信度。营养数值本质是估算，界面必须据此标注（PRD §7.3 FR-D02） */
+/** 估算值的置信度。营养数值本质是估算，界面必须据此标注，不能当作精确值展示 */
 export const CONFIDENCE_LEVELS = ['high', 'medium', 'low'] as const
 export type ConfidenceLevel = (typeof CONFIDENCE_LEVELS)[number]
 
@@ -60,7 +59,7 @@ export interface Exercise extends AuditFields {
   pattern: ExercisePattern
   primary_muscle: string
   metric_type: MetricType
-  /** 用户自建动作。自建占比超过 20% 时优先扩充内置动作库（PRD OP-03） */
+  /** 用户自建动作。自建占比超过 20% 说明内置动作库未覆盖常用动作，应优先扩充内置库 */
   is_custom: boolean
 }
 
@@ -82,13 +81,13 @@ export interface WorkoutExercise extends AuditFields {
 
 export interface SetEntry extends AuditFields {
   workout_exercise_id: Uuid
-  /** 负重类必填、计时类为 `null`。支持 0.5 步进（FR-T03） */
+  /** 负重类必填、计时类为 `null`。支持 0.5 步进 */
   weight_kg: number | null
   /** 负重类必填、计时类为 `null` */
   reps: number | null
-  /** 计时类必填、负重类为 `null`（PRD §12-13） */
+  /** 计时类必填、负重类为 `null`。时长不复用重量字段表达 */
   duration_sec: number | null
-  /** 主观用力程度 1-10，可选（FR-T03） */
+  /** 主观用力程度 1-10，可选 */
   rpe: number | null
   /** 热身组不计入训练容量（术语表：tonnage 仅统计非热身组） */
   is_warmup: boolean
@@ -99,7 +98,7 @@ export interface SetEntry extends AuditFields {
 
 export interface BodyMetric extends AuditFields {
   measured_at: IsoUtc
-  /** 统一以 kg 存储。界面可切换为斤，只影响显示（FR-W01） */
+  /** 统一以 kg 存储。界面可切换为斤，只影响显示，不改存储值 */
   weight_kg: number
   note: string | null
 }
@@ -107,7 +106,7 @@ export interface BodyMetric extends AuditFields {
 export interface Meal extends AuditFields {
   eaten_at: IsoUtc
   note: string | null
-  /** `local://<uuid>`，二进制在 blob store（约束 7） */
+  /** `local://<uuid>`，二进制在 blob store，本字段只存引用 */
   photo_ref: StorageRef | null
   total_kcal: number | null
   protein_g: number | null
@@ -120,7 +119,7 @@ export interface MealItem extends AuditFields {
   meal_id: Uuid
   name: string
   net_weight_g: number | null
-  /** 实际摄入占净含量的比例，0-1。界面以 10% 步进的滑杆呈现（FR-D04） */
+  /** 实际摄入占净含量的比例，0-1。界面以 10% 步进的滑杆呈现 */
   ratio: number
   kcal: number | null
   protein_g: number | null
@@ -130,11 +129,11 @@ export interface MealItem extends AuditFields {
 }
 
 export interface Target extends AuditFields {
-  /** 蛋白目标系数，g/kg 体重。PRD §15.5 的经验区间为 1.6-2.2 */
+  /** 蛋白目标系数，g/kg 体重。增肌期的经验区间为 1.6-2.2 */
   protein_per_kg: number
   /** 相对维持热量的日盈余，kcal。增肌期经验区间 +200~+300 */
   kcal_delta: number
-  /** 月度目标增速，kg。默认 +0.3，可选 +0.2~+0.5（FR-W03） */
+  /** 月度目标增速，kg。默认 +0.3，可选 +0.2~+0.5 */
   weight_gain_per_month: number
   weekly_workout_target: number
   effective_from: IsoUtc
@@ -157,11 +156,10 @@ export interface AppMeta extends AuditFields {
 // ── 3 个非业务 store（不适用 AuditFields 契约）────────────────────────────
 
 /**
- * 写入日志（约束 9）。
+ * 写入日志。每次 applyCommand 在同一事务内追加一条。
  *
- * 本期用于调试与校验：每次 applyCommand 在同一事务内追加一条。
- * 上云后直接作为离线队列的载体，因此**不参与导出**——它是操作历史而非
- * 数据状态，重放会产生重复写入（见 design.md「偏离留痕」第 2 条）。
+ * 本期用于调试与校验，上云后直接作为离线队列的载体，因此**不参与导出**——
+ * 它是操作历史而非数据状态，重放它会把已经发生的写入再做一遍。
  */
 export interface PendingOp {
   id: Uuid
@@ -172,10 +170,10 @@ export interface PendingOp {
 }
 
 /**
- * 图片二进制（约束 7）。
+ * 图片二进制。
  *
- * 这是全项目唯一允许物理删除的 store（见 design.md「偏离留痕」第 1 条）：
- * 图片是大二进制，软删除不释放配额，反而会导致约束 5 要防的问题。
+ * 这是全项目唯一允许物理删除的 store：图片是大二进制，软删除不释放配额，
+ * 留下一个指向已删图片的引用反而制造出需要三态解析才能处理的悬空引用。
  */
 export interface BlobRecord {
   id: Uuid
@@ -185,7 +183,7 @@ export interface BlobRecord {
   created_at: IsoUtc
 }
 
-/** 埋点属性只允许结构化值与区间值，禁止自由文本、图片与身份信息（PRD §10.3） */
+/** 埋点属性只允许结构化值与区间值，禁止自由文本、图片与身份信息 */
 export type AnalyticsProps = Readonly<Record<string, string | number | boolean | null>>
 
 export interface AnalyticsEvent {
@@ -203,8 +201,8 @@ export interface AnalyticsEvent {
 /**
  * 9 张业务表。
  *
- * 约束 3「每条记录带 user_id」与约束 4「每条记录带 version」的口径就是这 9 张；
- * PRD §10.5 自检项里的「9 张表」指的也是它们，不含下面 3 个非业务 store。
+ * 「每条记录都带 user_id 与 version」这条契约的口径就是这 9 张，不含下面
+ * 3 个非业务 store——它们不持有审计字段，也就不参与用户隔离与版本控制。
  */
 export const BUSINESS_STORE_NAMES = [
   'exercise',

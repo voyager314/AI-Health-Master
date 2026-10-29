@@ -3,7 +3,7 @@
  *
  * 这是**唯一的存储实现装配点**：整个应用里只有这个文件知道当前用的是 IndexedDB。
  * 换 MySQL 时新增 `storage/mysql/repository.ts`，把下面的工厂换掉即可，
- * 契约（./types.ts）与全部调用方都不动（约束 1）。
+ * 契约（./types.ts）与全部调用方都不动：存储实现只在这一处绑定。
  *
  * 每张表恰有一个 Repository，接口形状由 `RepositorySet` 在编译期钉住——
  * 漏掉一张表或多出一张表都过不了类型检查。

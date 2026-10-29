@@ -16,8 +16,8 @@ describe('测试环境', () => {
     expect(1 + 1).toBe(2)
   })
 
-  // 不直接探测 globalThis.indexedDB：那样写会绕过约束 1 的边界检查（ESLint 挡的就是
-  // globalThis.indexedDB 这种成员表达式）。改为走存储层自己的 API——fake-indexeddb
+  // 不直接探测 globalThis.indexedDB：存储访问只允许出现在数据库实现目录内，ESLint
+  // 挡的正是 globalThis.indexedDB 这类成员表达式。改为走存储层自己的 API——fake-indexeddb
   // 没装上时这里一样会失败，而且失败路径与真实代码路径一致。
   it('fake-indexeddb 已装好：能经存储层打开数据库', async () => {
     const db = await openDatabase({ dbName: uniqueDbName('harness') })

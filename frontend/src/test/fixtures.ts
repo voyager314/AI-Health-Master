@@ -2,7 +2,8 @@
  * 测试工具：库名隔离与记录构造。
  *
  * 用例之间靠独立库名隔离，不重置 indexedDB 全局——测试代码因此完全不需要碰
- * IndexedDB API，约束 1 的自检保持零豁免。
+ * IndexedDB API。存储访问只允许出现在数据库实现目录内，源码扫描据此判定，
+ * 测试代码不碰全局对象也就不必申请豁免。
  */
 import type {
   AppMeta,
@@ -45,7 +46,7 @@ export function fixedDate(iso: string, tzOffsetMinutes: number): Date {
 // ── 9 张业务表的 CreateInput 构造器 ─────────────────────────────────────────
 //
 // 每个构造器返回一条合规的最小记录，用 overrides 覆盖需要变化的字段。
-// 审计字段不在这里出现——它们由写入包装层注入，业务代码传不了（约束 3）。
+// 审计字段不在这里出现——它们由写入包装层注入，业务代码既看不到也传不了。
 
 export function anExercise(overrides: Partial<CreateInput<Exercise>> = {}): CreateInput<Exercise> {
   return {

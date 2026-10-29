@@ -2,7 +2,8 @@
  * Repository 契约的 IndexedDB 实现。
  *
  * 契约在 `storage/repositories/types.ts`，装配在 `storage/repositories/index.ts`。
- * 换 MySQL 时新增一份同名工厂、改一处装配即可，调用方不动（约束 1）。
+ * 存储访问一律经 Repository 层，换 MySQL 时新增一份同名工厂、改一处装配即可，
+ * 调用方不动。
  *
  * 本文件在 storage/indexeddb/ 下，是全仓库允许直接使用 IndexedDB API 的地方之一。
  */
@@ -28,7 +29,7 @@ export type { DbProvider }
  * 把 QuerySpec 的取数条件翻成 IDBKeyRange。
  *
  * 只支持等值与闭区间——这两种恰好对应 SQL 的 `= ?` 与 `BETWEEN ? AND ?`，
- * 再复杂的条件一律落到内存过滤（约束 8）。
+ * 再复杂的条件一律落到内存过滤。
  */
 function toKeyRange<N extends BusinessStoreName>(
   spec: QuerySpec<N>,

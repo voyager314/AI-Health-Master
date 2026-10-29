@@ -2,8 +2,9 @@
  * Command 层的契约。
  *
  * 一条命令声明三件事：它叫什么、会写哪些表、怎么写。除此之外它拿不到别的能力——
- * 开不了自己的事务、跳不过 `pending_ops` 日志、看不到 `user_id`。这是约束 9 与
- * 约束 3 在 API 形状上的落点。
+ * 开不了自己的事务、跳不过 `pending_ops` 日志、看不到 `user_id`。写操作只能经由
+ * 这一条统一入口，`user_id` 由存储层统一注入、业务代码不传——API 的形状本身保证
+ * 了这两点无法被绕过。
  */
 import type { StoreName, ValidationIssue } from '@/entities'
 import type { BulkOperations, Now, RepositorySet, WriteTx } from '@/storage/internal'

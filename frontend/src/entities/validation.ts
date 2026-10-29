@@ -3,7 +3,7 @@
  *
  * 一份规格，两处使用：
  *   1. 写入路径（storage）——落库前校验，把脏数据挡在数据库之外
- *   2. 导入路径（任务 9.1）——必须在清空数据库**之前**完成全量校验，
+ *   2. 导入路径——必须在清空数据库**之前**完成全量校验，
  *      否则「清空后才发现文件第 300 条有问题」会让用户原数据直接没了
  *
  * 校验是纯函数、零依赖，因此导入校验天然满足「不碰数据库」的要求。
@@ -22,12 +22,12 @@ import {
 // ── 规格定义 ────────────────────────────────────────────────────────────────
 
 export type FieldRule =
-  /** UUID v7。版本位必须是 7——这让一个 v4 主键在落库前就被拒绝（约束 2） */
+  /** UUID v7。版本位必须是 7——这让一个 v4 主键在落库前就被拒绝 */
   | { readonly type: 'uuidV7' }
   | { readonly type: 'userId' }
-  /** 以 Z 结尾的 UTC ISO 8601（约束 6） */
+  /** 以 Z 结尾的 UTC ISO 8601 */
   | { readonly type: 'isoUtc' }
-  /** `local://<uuid>`（约束 7） */
+  /** `local://<uuid>` */
   | { readonly type: 'storageRef' }
   | { readonly type: 'boolean' }
   | { readonly type: 'string'; readonly maxLength?: number; readonly allowEmpty?: boolean }
@@ -174,7 +174,7 @@ export function validateRecord(spec: RecordSpec, value: unknown): ValidationIssu
 
 // ── 各 store 的规格 ─────────────────────────────────────────────────────────
 
-/** 9 张业务表共有的审计字段规格（约束 2/3/4/5/6） */
+/** 9 张业务表共有的审计字段规格：主键、幂等键、用户、版本、时刻与时区偏移 */
 export const AUDIT_SPEC: RecordSpec = {
   id: f({ type: 'uuidV7' }),
   client_id: f({ type: 'uuidV7' }),
@@ -217,7 +217,7 @@ export const RECORD_SPECS: Readonly<Record<StoreName, RecordSpec>> = {
     ...AUDIT_SPEC,
     workout_exercise_id: f({ type: 'uuidV7' }),
     // 上限取宽松值：识别出 500kg 这类异常值不在这里拦，而是在界面上高亮
-    // 并要求用户二次确认（PRD §12-6）——校验层拒绝会让用户无法保存真实的大重量
+    // 并要求用户二次确认——校验层拒绝会让用户无法保存真实的大重量
     weight_kg: f({ type: 'number', min: 0, max: 1000 }, true),
     reps: f({ type: 'int', min: 1, max: 1000 }, true),
     duration_sec: f({ type: 'int', min: 1, max: 86_400 }, true),
@@ -261,7 +261,7 @@ export const RECORD_SPECS: Readonly<Record<StoreName, RecordSpec>> = {
 
   target: {
     ...AUDIT_SPEC,
-    // PRD §15.5 的经验区间是 1.6-2.2 g/kg，这里放宽到 0.5-5 允许用户自行调整
+    // 增肌期的经验区间是 1.6-2.2 g/kg，这里放宽到 0.5-5 允许用户自行调整
     protein_per_kg: f({ type: 'number', min: 0.5, max: 5 }),
     kcal_delta: f({ type: 'number', min: -2000, max: 2000 }),
     weight_gain_per_month: f({ type: 'number', min: -5, max: 5 }),

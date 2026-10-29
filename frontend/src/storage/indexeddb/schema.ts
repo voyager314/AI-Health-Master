@@ -1,8 +1,8 @@
 /**
  * IndexedDB 的 store 与索引定义。
  *
- * 索引遵循约束 8：只建**单字段**索引，查询一律「按主键或单字段索引取数 + 内存过滤」，
- * 禁止复合游标。判定标准是每个查询都能等价写成一条单表 `SELECT ... WHERE`。
+ * 只建**单字段**索引，查询一律「按主键或单字段索引取数 + 内存过滤」，
+ * 不使用复合游标。判定标准是每个查询都能等价写成一条单表 `SELECT ... WHERE`。
  *
  * 两个 IndexedDB 的硬性限制影响了索引选择：
  *
@@ -10,7 +10,7 @@
  *      无法建索引，只能内存过滤。
  *   2. **索引会跳过被索引字段为 null/undefined 的记录。** 因此 `deleted_at` 上的索引
  *      只会包含「已删除」的记录，用它查不出「未删除」的。排除软删除记录必须在内存中做
- *      （这也正好符合约束 8 的「取数 + 内存过滤」形状）。
+ *      （这也正好符合「取数 + 内存过滤」的形状）。
  *
  * 只建实际会用到的索引：每个索引都会增加写入开销与存储占用。
  */
@@ -37,7 +37,7 @@ export interface StoreDef {
   readonly name: StoreName
   readonly keyPath: string
   readonly indexes: readonly string[]
-  /** business = 9 张业务表，适用审计字段契约（约束 3/4）；internal = 其余 3 个 */
+  /** business = 9 张业务表，其审计字段由存储层注入；internal = 其余 3 个 */
   readonly kind: 'business' | 'internal'
 }
 
@@ -59,7 +59,7 @@ export const STORES: readonly StoreDef[] = [
   {
     name: 'workout_exercise',
     keyPath: 'id',
-    // exercise_id 是 FR-T07「上次同动作」的取数入口（v0.2 使用）
+    // exercise_id 是「上次同动作」的取数入口（v0.2 使用）
     indexes: ['user_id', 'workout_id', 'exercise_id'],
     kind: 'business',
   },
@@ -72,7 +72,7 @@ export const STORES: readonly StoreDef[] = [
   {
     name: 'body_metric',
     keyPath: 'id',
-    // measured_at 支撑「近 12 周体重趋势」的范围取数（FR-W02）
+    // measured_at 支撑「近 12 周体重趋势」的范围取数
     indexes: ['user_id', 'measured_at'],
     kind: 'business',
   },
@@ -110,7 +110,7 @@ export const STORES: readonly StoreDef[] = [
   {
     name: 'blob',
     keyPath: 'id',
-    // created_at 支撑图片清理策略（PRD §11.5：最近 30 天或最近 50 张）
+    // created_at 支撑图片清理策略：只保留最近 30 天内、且最多最近 50 张
     indexes: ['created_at'],
     kind: 'internal',
   },
@@ -128,7 +128,7 @@ export const BUSINESS_STORES = STORES.filter((s) => s.kind === 'business')
  * idb 的类型化 schema。
  *
  * 与上面的 STORES 是两份声明：STORES 驱动建表（运行时），本类型驱动类型推导（编译期）。
- * 两者漂移由任务 2.1 的测试兜住——它断言实际数据库里 12 个 store 与各自的索引都存在。
+ * 两者漂移由测试兜住——测试断言实际数据库里 12 个 store 与各自的索引都存在。
  */
 export interface AppDb extends DBSchema {
   exercise: {

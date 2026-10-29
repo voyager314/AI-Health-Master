@@ -1,8 +1,9 @@
 /**
- * 任务 2.3 的验收：写入包装层的审计字段注入与落库校验。
+ * 写入包装层的行为：审计字段注入与落库校验。
  *
- * 覆盖约束 2（UUID v7 时间有序）、3（user_id 由存储层注入）、
- * 4（version）、5（软删除）、6（UTC + 独立时区偏移）。
+ * 注入的审计字段各自守一条规则：主键是 UUID v7，因此按生成先后即可近似按时间排序；
+ * user_id 由存储层统一填，业务代码不传；version 从 1 起；软删除只写 deleted_at，
+ * 记录仍留在库中；时间一律存 UTC，时区偏移另存一列。
  */
 import { RECORD_SPECS, validateRecord } from '@/entities'
 import {

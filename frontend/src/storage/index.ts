@@ -4,8 +4,8 @@
  * 这里只导出 Repository 的**只读视图**：`list` / `get` / `query`。
  * 写方法（`put` / `remove` / `clear`）只在 `./internal.ts`，且仅 `commands/**` 可导入。
  *
- * 这是约束 9 的强制手段（design.md D4）：页面写 `exerciseRepo.put(...)` 是
- * TypeScript 编译错误，而不是一条需要人去发现的 lint 警告。
+ * 页面写 `exerciseRepo.put(...)` 是 TypeScript 编译错误，而不是一条需要人去
+ * 发现的 lint 警告：写能力在类型上就不存在，不靠人工审计保证。
  *
  * 允许导入：entities/、storage/repositories/、storage/indexeddb/
  * 可被导入：任何层

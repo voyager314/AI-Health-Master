@@ -1,5 +1,5 @@
 /**
- * 任务 3.1 / 3.2 的验收：Repository 的 6 方法形状、软删除语义与可翻译查询。
+ * Repository 的六个方法形状、软删除语义与可翻译查询。
  */
 import { BUSINESS_STORE_NAMES } from '@/entities'
 import { closeDatabase, openDatabase } from '@/storage/indexeddb/db.ts'

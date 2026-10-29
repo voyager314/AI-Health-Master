@@ -1,9 +1,9 @@
 /**
  * 命令事务：业务写入与 `pending_ops` 日志的原子边界。
  *
- * 这里是约束 9 的落点。`pending_ops` 的追加写在本文件里，而不是交给各个命令的
- * handler——否则「这条命令有没有记日志」会变成每个 handler 的自觉，约束 9 就
- * 退化成了口头约定（见 design.md D3）。handler 拿到的只有一个事务句柄，
+ * 每条命令都必须留下 `pending_ops` 日志，且与业务写入同生共死。追加写在本文件里，
+ * 而不是交给各个命令的 handler——否则「这条命令有没有记日志」会变成每个 handler
+ * 的自觉，这条规则就退化成了口头约定。handler 拿到的只有一个事务句柄，
  * 它既跳不过日志，也开不了自己的事务。
  */
 import type { PendingOp, StoreName } from '@/entities'
@@ -13,14 +13,14 @@ import { getDatabase, type DbProvider } from './db.ts'
 import { clearAllInTransaction, replaceAllInTransaction } from './transfer.ts'
 import { assertValidRecord, type Now } from './write.ts'
 
-/** 写入失败的原因分类，决定界面提示什么、要不要给重试入口（FR-S01.6） */
+/** 写入失败的原因分类，决定界面提示什么、要不要给重试入口 */
 export type WriteFailureReason = 'quota_exceeded' | 'constraint' | 'unknown'
 
 /**
  * 本地存储写入失败。
  *
  * 携带足够界面用的信息：失败原因、是否可重试、原始错误。
- * FR-S01.6 要求提示用户「先导出数据、再清理历史图片」并给出重试入口，
+ * 空间不足时要提示用户「先导出数据、再清理历史图片」并给出重试入口，
  * 文案由界面层按 `reason` 决定，这里只负责把原因如实分类传上去。
  */
 export class StorageWriteError extends Error {
@@ -85,7 +85,7 @@ export interface CommandTransactionOptions {
  * 在单个读写事务里跑完一条命令，并在同一事务内追加 `pending_ops`。
  *
  * 成功只有一种情形：handler 与日志都写成功且事务提交。任何一步失败都整体回滚，
- * 既不留下半条业务数据，也不留下这条已失败命令的日志（FR-S06.3）。
+ * 既不留下半条业务数据，也不留下这条已失败命令的日志。
  *
  * ⚠️ `run` 内禁止 `await` 任何非 IndexedDB 的 Promise。IndexedDB 事务会在控制权
  * 交回事件循环时自动提交，之后的写入会抛 `TransactionInactiveError`——这个限制

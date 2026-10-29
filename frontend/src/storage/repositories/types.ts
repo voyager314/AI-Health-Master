@@ -3,9 +3,9 @@
  *
  * 本文件是**存储无关**的：它描述上层能对数据做什么，不描述怎么做。
  * IndexedDB 的实现在 `storage/indexeddb/repository.ts`，装配在 `./index.ts`。
- * 将来换 MySQL 时新增一份实现、改一处装配即可，本文件与全部调用方不动（约束 1）。
+ * 将来换 MySQL 时新增一份实现、改一处装配即可，本文件与全部调用方不动。
  *
- * 查询接口的形状本身就是约束 8 的强制手段：`QuerySpec` 只允许「一个单字段索引
+ * 查询接口的形状本身就是查询规则的强制手段：`QuerySpec` 只允许「一个单字段索引
  * 取数 + 一个内存过滤函数」，复合游标在这个 API 里根本无法表达。这比「每次 review
  * 查询方法」可靠——写不出来，就不用检查。
  */
@@ -50,7 +50,7 @@ export interface QuerySpec<N extends BusinessStoreName> {
   readonly range?: { readonly from?: string; readonly to?: string }
   /** 取数后的内存过滤 */
   readonly filter?: (row: Row<N>) => boolean
-  /** 是否包含已软删除的记录。默认 false（约束 5：常规查询排除软删除） */
+  /** 是否包含已软删除的记录。默认 false：常规查询把软删除的记录排除在外 */
   readonly includeDeleted?: boolean
   /** 取前 N 条。在过滤之后应用 */
   readonly limit?: number
@@ -113,7 +113,7 @@ export interface Repository<N extends BusinessStoreName> extends ReadableReposit
   put(record: Row<N>, tx?: WriteTx): Promise<Row<N>>
 
   /**
-   * 软删除（约束 5）：写 `deleted_at`，记录仍留在库中。
+   * 软删除：写 `deleted_at`，记录仍留在库中。
    * 记录不存在时返回 undefined；重复删除保持首次的删除时刻。
    */
   remove(id: Uuid, now: Now, tx?: WriteTx): Promise<Row<N> | undefined>
@@ -121,8 +121,8 @@ export interface Repository<N extends BusinessStoreName> extends ReadableReposit
   /**
    * 物理清空整张表。
    *
-   * 这是约束 5 的例外之一，只服务于「清空全部数据」（FR-S02.3）与导入时的整库替换
-   * （FR-S07.1）。常规删除一律走 remove。
+   * 物理删除的例外之一，只服务于「清空全部数据」与导入时的整库替换。
+   * 常规删除一律走 remove。
    */
   clear(tx?: WriteTx): Promise<void>
 }

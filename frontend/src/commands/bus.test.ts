@@ -1,8 +1,9 @@
 /**
- * 任务 4.1 / 4.2 / 4.3 的验收：Command 层的单一写入口、事务原子性与失败可感知。
+ * Command 层的单一写入口、事务原子性与失败可感知。
  *
- * 覆盖约束 9（写操作走统一 Command 层、每次写入记 pending_ops）与 FR-S01.6
- * （写入失败必须可感知、禁止静默丢数据、多记录写入全有或全无）。
+ * 四条规则在这里同时成立：写操作只能经 Command 层发生；每次写入同时追加一条
+ * pending_ops 记录；写入失败必须让调用方感知，不得表现为已保存；一次命令内的
+ * 多表写入全有或全无。
  */
 import type { BodyMetric } from '@/entities'
 import {
@@ -200,7 +201,7 @@ describe('失败回滚（FR-S06.3 / FR-S01.6）', () => {
     expect(error).toBeInstanceOf(StorageWriteError)
     expect(error.reason).toBe('quota_exceeded')
     expect(error.retryable).toBe(true)
-    // FR-S01.6 要求提示「先导出数据、再清理历史图片」
+    // 配额不足的提示要指明下一步动作：先导出数据、再清理历史图片
     expect(error.message).toContain('导出')
     expect(error.message).toContain('清理')
     // 禁止表现为「已保存」：抛错即未保存

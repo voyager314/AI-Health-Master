@@ -2,7 +2,7 @@
  * 数据库连接与版本策略。
  *
  * 本文件与同目录下的 schema / migrations 是全仓库唯一允许触碰 IndexedDB API 的地方
- * （约束 1，由 ESLint 强制）。其余各层经 Repository 访问存储。
+ * （由 ESLint 强制）。其余各层一律经 Repository 访问存储。
  */
 import { openDB, type IDBPDatabase } from 'idb'
 import { dumpDatabase, type DatabaseSnapshot } from './dump.ts'
@@ -32,7 +32,7 @@ export class UnsupportedBrowserError extends Error {
 /**
  * 本地数据的 schema 版本高于当前应用支持的版本。
  *
- * PRD 未提及这种情况，但本地优先 + PWA 缓存下它完全可能发生：用户在一台设备上
+ * 本地优先 + PWA 缓存下这完全可能发生：用户在一台设备上
  * 用新版应用写了数据，另一处的应用壳还是旧缓存。此时若放行，旧版迁移逻辑会按
  * 自己的理解改写新结构，静默损坏数据——所以必须拒绝启动。
  */
@@ -61,12 +61,12 @@ export class UpgradeBlockedError extends Error {
 /**
  * 读出本地库当前的 schema 版本；库不存在时返回 `NO_DATABASE`。
  *
- * 必须在打开目标版本**之前**知道当前版本，才能决定是否先导出备份（约束 10）。
+ * 必须在打开目标版本**之前**知道当前版本，才能决定是否先导出备份。
  *
  * 这里依赖 `indexedDB.databases()` 而不做回退：用「不指定版本」打开一个不存在的库
  * 会凭空把它创建成一个没有任何 store 的 v1 空库，清理它就得调 deleteDatabase——
- * 而 deleteDatabase 是本地优先架构下数据丢失的头号来源，design.md D9 把它的全局
- * 出现次数守在零。宁可对过旧的浏览器明确报错，也不引入这条路径。
+ * 而 deleteDatabase 是本地优先架构下数据丢失的头号来源，全仓库对它零调用。
+ * 宁可对过旧的浏览器明确报错，也不引入这条路径。
  */
 export async function probeSchemaVersion(dbName: string = DB_NAME): Promise<number> {
   if (typeof indexedDB.databases !== 'function') throw new UnsupportedBrowserError()

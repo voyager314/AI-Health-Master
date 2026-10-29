@@ -1,11 +1,11 @@
 /**
  * 写入包装层。
  *
- * 9 张业务表的审计字段（约束 2/3/4/5/6）全部在这里注入，业务代码既看不到也传不了。
+ * 9 张业务表的审计字段全部在这里注入，业务代码既看不到也传不了。
  * 落库前按字段规格校验，把脏数据挡在数据库之外。
  *
  * ⚠️ 本文件是 `'local'` 这个 user_id 字面量在全仓库的**唯一**出现位置——
- * 约束 3 的自检就是搜 storage/** 之外是否有它。
+ * 自检的方式是搜 storage/** 之外是否有它。
  */
 import type {
   AuditFields,
@@ -20,13 +20,13 @@ import { RECORD_SPECS, validateRecord } from '@/entities'
 import { v7 as uuidv7 } from 'uuid'
 
 /**
- * 本期固定的用户标识（约束 3）。
+ * 本期固定的用户标识。
  *
  * 上云时只把这里换成真实用户 ID，表结构与业务代码都不动。
  */
 export const LOCAL_USER_ID = 'local'
 
-/** 本期 version 恒为 1，上云后作为乐观锁（约束 4） */
+/** 本期 version 恒为 1，上云后作为乐观锁 */
 export const INITIAL_VERSION = 1
 
 // ── 时刻 ────────────────────────────────────────────────────────────────────
@@ -42,7 +42,7 @@ export interface Now {
  * 取当前时刻与设备时区偏移。
  *
  * ⚠️ 必须在开启事务**之前**调用。IndexedDB 事务会在控制权交回事件循环时自动提交，
- * 所以事务内不能有任何异步取值；所有准备工作都前置到这里（见 design.md D3）。
+ * 所以事务内不能有任何异步取值；所有准备工作都前置到这里。
  *
  * `clock` 参数让测试能注入固定时刻，不必 mock 全局 Date。
  */
@@ -97,7 +97,7 @@ export type UpdateInput<T extends BusinessRecord> = Partial<CreateInput<T>>
  * 指错地方。用 store 名这个字面量做泛型键，推导必然成功，而且构造点与目标表绑定。
  *
  * `id` 用 UUID v7 而非 `crypto.randomUUID()`（后者是 v4，纯随机）：v7 时间有序，
- * 主键天然可近似按时间排序，上云后也不会让 B 树索引随机分裂（约束 2）。
+ * 主键天然可近似按时间排序，上云后也不会让 B 树索引随机分裂。
  * `client_id` 本期与 `id` 同值，上云后服务端靠它为离线重放去重。
  */
 export function withAuditForCreate<N extends BusinessStoreName>(
@@ -130,7 +130,7 @@ export function withAuditForCreate<N extends BusinessStoreName>(
  * - `id` / `client_id`：改了就等于换了一条记录，上云合并时会出现重复
  * - `created_at`：创建时刻是事实，不随编辑改变
  * - `tz_offset_minutes`：记录的是**写入当时**的时区。用户跨时区旅行后编辑旧记录，
- *   若把它刷成新时区，这条记录的自然日/周归属就会漂走（约束 6）
+ *   若把它刷成新时区，这条记录的自然日/周归属就会漂走
  * - `version`：本期恒为 1，上云后由服务端递增
  * - `deleted_at`：删除只能走 `withAuditForSoftDelete`
  */
@@ -154,9 +154,9 @@ export function withAuditForUpdate<T extends BusinessRecord>(
 }
 
 /**
- * 软删除（约束 5）：写 `deleted_at`，记录仍留在库中。
+ * 软删除：写 `deleted_at`，记录仍留在库中。
  *
- * 物理删除只在两处允许——「清空全部数据」与图片 blob 的清理（见 design.md 偏离留痕）。
+ * 物理删除只在两处允许——「清空全部数据」与图片 blob 的清理。
  * 重复删除保持首次的删除时刻不变，避免「删除时间」因误操作而漂移。
  */
 export function withAuditForSoftDelete<T extends BusinessRecord>(
