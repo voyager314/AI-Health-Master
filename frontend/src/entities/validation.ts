@@ -8,6 +8,7 @@
  *
  * 校验是纯函数、零依赖，因此导入校验天然满足「不碰数据库」的要求。
  */
+import { ISO_UTC, STORAGE_REF, UUID_V7 } from './formats.ts'
 import {
   CONFIDENCE_LEVELS,
   EXERCISE_PATTERNS,
@@ -54,10 +55,6 @@ export interface ValidationIssue {
 const f = (rule: FieldRule, nullable = false): FieldSpec => ({ rule, nullable })
 
 // ── 校验实现 ────────────────────────────────────────────────────────────────
-
-const UUID_V7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-const ISO_UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/
-const STORAGE_REF = /^local:\/\/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 /** 返回不合规原因；合规返回 null */
 function checkRule(rule: FieldRule, value: unknown): string | null {
