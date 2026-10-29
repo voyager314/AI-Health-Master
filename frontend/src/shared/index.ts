@@ -10,4 +10,5 @@
  * 可被导入：任何层
  */
 
-export {}
+export { createDownloadSink } from './fileSink.ts'
+export type { FileSink } from './fileSink.ts'

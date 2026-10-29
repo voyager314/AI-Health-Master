@@ -8,4 +8,14 @@
  * 允许导入：entities/、commands/、storage/、domain/、stats/、telemetry/、shared/
  */
 
-export {}
+export { createDataTransfer, dataTransfer } from './transfer.ts'
+export type {
+  ClearOptions,
+  DataTransfer,
+  DataTransferDeps,
+  ExportFormat,
+  ExportOptions,
+  ExportResult,
+  ImportOptions,
+  ImportResult,
+} from './transfer.ts'
