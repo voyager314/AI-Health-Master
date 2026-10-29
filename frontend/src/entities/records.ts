@@ -140,18 +140,17 @@ export interface Target extends AuditFields {
   effective_from: IsoUtc
 }
 
+/**
+ * 单行记录，承载与具体业务无关的应用状态。
+ *
+ * 不持有 schema 版本：数据库自身的 version 是唯一权威，导出文件在信封顶层另行
+ * 携带它。两处各存一份的话，导入时按信封决定迁移、又把记录原样写回，两者就能
+ * 不一致，而不一致的那一份没人知道该信谁。
+ */
 export interface AppMeta extends AuditFields {
-  /**
-   * 本地库的 schema 版本。
-   *
-   * 权威来源是 IndexedDB 数据库自身的 version，本字段是它的镜像：
-   * 导出文件需要带 schema_version（约束 11），而迁移运行器是本字段的唯一写入者。
-   * 启动时会校验两者一致，不一致则以数据库 version 为准自愈。
-   */
-  schema_version: number
-  /** 告知同意的时刻（FR-S05.1）。未同意为 `null`，此时不得进入任何业务功能 */
+  /** 告知同意的时刻。为 `null` 表示尚未同意，此时不得进入任何业务功能 */
   consent_at: IsoUtc | null
-  /** 最近一次导出时刻，用于「建议每周导出」的提示（PRD §12-9） */
+  /** 最近一次导出完成的时刻。为 `null` 表示从未导出，用于提醒用户定期导出 */
   last_export_at: IsoUtc | null
 }
 

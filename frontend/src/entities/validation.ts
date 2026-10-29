@@ -271,7 +271,6 @@ export const RECORD_SPECS: Readonly<Record<StoreName, RecordSpec>> = {
 
   app_meta: {
     ...AUDIT_SPEC,
-    schema_version: f({ type: 'int', min: 1 }),
     consent_at: f({ type: 'isoUtc' }, true),
     last_export_at: f({ type: 'isoUtc' }, true),
   },

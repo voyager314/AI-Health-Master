@@ -147,7 +147,6 @@ export function aTarget(overrides: Partial<CreateInput<Target>> = {}): CreateInp
 
 export function anAppMeta(overrides: Partial<CreateInput<AppMeta>> = {}): CreateInput<AppMeta> {
   return {
-    schema_version: 1,
     consent_at: null,
     last_export_at: null,
     ...overrides,
