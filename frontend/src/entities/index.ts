@@ -13,12 +13,20 @@
 
 export type { AuditFields, IsoUtc, StorageRef, UserId, Uuid } from './common.ts'
 
-export { STORAGE_REF_PREFIX, formatStorageRef, parseStorageRef } from './formats.ts'
+export {
+  ISO_UTC,
+  STORAGE_REF_PREFIX,
+  UUID_V7,
+  formatStorageRef,
+  parseStorageRef,
+} from './formats.ts'
 
 export {
+  ALL_STORE_NAMES,
   BUSINESS_STORE_NAMES,
   CONFIDENCE_LEVELS,
   EXERCISE_PATTERNS,
+  EXPORTED_STORE_NAMES,
   INPUT_SOURCES,
   INTERNAL_STORE_NAMES,
   MEAL_ITEM_SOURCES,
@@ -38,6 +46,7 @@ export type {
   ConfidenceLevel,
   Exercise,
   ExercisePattern,
+  ExportedStoreName,
   InputSource,
   InternalStoreName,
   Meal,

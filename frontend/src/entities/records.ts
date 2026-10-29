@@ -222,7 +222,24 @@ export type BusinessStoreName = (typeof BUSINESS_STORE_NAMES)[number]
 export const INTERNAL_STORE_NAMES = ['pending_ops', 'blob', 'analytics_event'] as const
 export type InternalStoreName = (typeof INTERNAL_STORE_NAMES)[number]
 
+export const ALL_STORE_NAMES = [...BUSINESS_STORE_NAMES, ...INTERNAL_STORE_NAMES] as const
+
 export type StoreName = BusinessStoreName | InternalStoreName
+
+/**
+ * 进入导出文件的表：9 张业务表加埋点事件。
+ *
+ * 写操作日志与图片二进制不在其中。前者是操作历史，重放它会把已经发生的写入再做
+ * 一遍；后者是二进制，混进纯数据文件会让文件大到无法传输。
+ *
+ * 导入只接受这 10 张表——文件里出现别的表名说明文件被改过或来自不兼容的版本，
+ * 与其猜测意图，不如拒绝。
+ */
+export const EXPORTED_STORE_NAMES = [
+  ...BUSINESS_STORE_NAMES,
+  'analytics_event',
+] as const
+export type ExportedStoreName = (typeof EXPORTED_STORE_NAMES)[number]
 
 /** store 名 → 记录类型的映射，供 Repository 做类型推导 */
 export interface BusinessRecordMap {

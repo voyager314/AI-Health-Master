@@ -15,3 +15,6 @@
 export { toCsvFiles, toJsonFile } from './export.ts'
 export type { ExportableSnapshot, ExportFile } from './export.ts'
 
+export { ImportValidationError, parseImportFile } from './import.ts'
+export type { ImportOptions, ParsedImport, RecordUpgrade } from './import.ts'
+
