@@ -44,14 +44,14 @@ describe('打开与迁移策略', () => {
   })
 
   it('全新安装直接建到期望版本，且不触发备份钩子（没有数据可备份）', async () => {
-    const beforeUpgrade = vi.fn(async () => {})
+    const onBackup = vi.fn(async () => {})
     const db = await openDatabase({
       dbName: uniqueDbName('fresh'),
-      beforeUpgrade,
+      onBackup,
     })
 
     expect(db.version).toBe(SCHEMA_VERSION)
-    expect(beforeUpgrade).not.toHaveBeenCalled()
+    expect(onBackup).not.toHaveBeenCalled()
     db.close()
   })
 
@@ -61,11 +61,11 @@ describe('打开与迁移策略', () => {
     first.close()
     closeDatabase()
 
-    const beforeUpgrade = vi.fn(async () => {})
-    const second = await openDatabase({ dbName: name, beforeUpgrade })
+    const onBackup = vi.fn(async () => {})
+    const second = await openDatabase({ dbName: name, onBackup })
 
     expect(second.version).toBe(SCHEMA_VERSION)
-    expect(beforeUpgrade).not.toHaveBeenCalled()
+    expect(onBackup).not.toHaveBeenCalled()
     second.close()
   })
 

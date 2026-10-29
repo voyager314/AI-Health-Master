@@ -5,9 +5,11 @@
  * （约束 1，由 ESLint 强制）。其余各层经 Repository 访问存储。
  */
 import { openDB, type IDBPDatabase } from 'idb'
+import { dumpDatabase, type DatabaseSnapshot } from './dump.ts'
 import {
   LATEST_SCHEMA_VERSION,
   MIGRATIONS,
+  type Migration,
   type SchemaWriter,
 } from './migrations/index.ts'
 import { DB_NAME, type AppDb } from './schema.ts'
@@ -74,15 +76,19 @@ export async function probeSchemaVersion(dbName: string = DB_NAME): Promise<numb
 
 export interface OpenOptions {
   readonly dbName?: string
-  /** 默认为 `SCHEMA_VERSION`。测试用它构造版本不匹配的场景 */
+  /** 期望的结构版本。默认取迁移链的长度 */
   readonly expectedVersion?: number
+  /** 要执行的迁移链。默认为应用自带的那条，测试用它构造多版本升级场景 */
+  readonly migrations?: readonly Migration[]
   /**
-   * 升级前的钩子，在旧版本仍然完好时调用（约束 10 的「迁移前自动导出备份」）。
+   * 升级前拿到旧库快照，用于把备份落盘。
    *
-   * 任务 7.2 在这里接入备份导出。放成钩子而不是直接调用导出模块，是为了让
-   * db.ts 不依赖导出实现——否则 storage/indexeddb 会反向依赖上层。
+   * 快照在旧结构仍然完好时取得，调用方负责持久化它。做成钩子而不是直接写文件，
+   * 是为了让数据库层不关心文件、下载与编码——那些依赖属于上层。
+   *
+   * 全新安装不会触发：没有数据可备份。
    */
-  readonly beforeUpgrade?: (fromVersion: number, toVersion: number) => Promise<void>
+  readonly onBackup?: (snapshot: DatabaseSnapshot, fromVersion: number) => Promise<void>
   /**
    * 本连接因为挡住了另一个标签页的升级而被主动关闭时调用。
    *
@@ -92,16 +98,48 @@ export interface OpenOptions {
 }
 
 /**
+ * 迁移失败。
+ *
+ * 升级事务被中止，数据库停留在原版本与原内容上。`backupTaken` 指出此前是否已经
+ * 取到备份，界面据此决定要不要告诉用户去哪里找它。
+ */
+export class MigrationFailedError extends Error {
+  readonly fromVersion: number
+  readonly toVersion: number
+  readonly backupTaken: boolean
+
+  constructor(
+    fromVersion: number,
+    toVersion: number,
+    backupTaken: boolean,
+    options: { cause?: unknown } = {},
+  ) {
+    super(
+      backupTaken
+        ? `从版本 ${fromVersion} 升级到 ${toVersion} 失败。数据保持升级前的状态，升级前的备份已经生成。`
+        : `从版本 ${fromVersion} 升级到 ${toVersion} 失败。数据保持升级前的状态。`,
+      options,
+    )
+    this.name = 'MigrationFailedError'
+    this.fromVersion = fromVersion
+    this.toVersion = toVersion
+    this.backupTaken = backupTaken
+  }
+}
+
+/**
  * 打开数据库，必要时按序执行迁移。
  *
- * 启动序列见 design.md D6。关键点是备份必须发生在 `openDB` 之前：
- * 迁移只能在 `onupgradeneeded` 里做，而那时旧结构已经在被改写了。
+ * 升级前先取备份，而且必须在打开目标版本之前完成：结构改写发生在升级回调里，
+ * 等到那时旧结构已经不在了，再想读出原样的数据就来不及。为此备份会用旧版本号
+ * 单独开一次连接，读完立刻关闭——不关的话它会挡住接下来的升级。
  */
 export async function openDatabase(
   options: OpenOptions = {},
 ): Promise<IDBPDatabase<AppDb>> {
   const dbName = options.dbName ?? DB_NAME
-  const expectedVersion = options.expectedVersion ?? SCHEMA_VERSION
+  const migrations = options.migrations ?? MIGRATIONS
+  const expectedVersion = options.expectedVersion ?? migrations.length
 
   const localVersion = await probeSchemaVersion(dbName)
 
@@ -110,35 +148,59 @@ export async function openDatabase(
   }
 
   const needsUpgrade = localVersion < expectedVersion
-  if (needsUpgrade && options.beforeUpgrade && localVersion !== NO_DATABASE) {
-    // 全新安装（localVersion === NO_DATABASE）没有数据可备份，跳过
-    await options.beforeUpgrade(localVersion, expectedVersion)
+  const hasExistingData = localVersion !== NO_DATABASE
+
+  let backupTaken = false
+  if (needsUpgrade && hasExistingData && options.onBackup) {
+    const previous = await openDB<AppDb>(dbName, localVersion)
+    try {
+      await options.onBackup(
+        await dumpDatabase(previous, new Date().toISOString()),
+        localVersion,
+      )
+      backupTaken = true
+    } finally {
+      previous.close()
+    }
   }
 
-  return openDB<AppDb>(dbName, expectedVersion, {
-    upgrade(db, oldVersion, newVersion) {
-      const target = newVersion ?? expectedVersion
-      // 唯一一次 cast：迁移遍历 STORES 动态建表，与 idb 要求 store 名为字面量
-      // key 的签名不兼容。收窄到 SchemaWriter 这个最小接口，见 migrations/index.ts
-      const writer = db as unknown as SchemaWriter
-      for (const migration of MIGRATIONS) {
-        if (migration.version > oldVersion && migration.version <= target) {
-          migration.up(writer)
+  try {
+    return await openDB<AppDb>(dbName, expectedVersion, {
+      upgrade(db, oldVersion, newVersion, transaction) {
+        // 迁移抛错会让升级事务被中止，而中止会让 transaction.done 拒绝。失败原因
+        // 已经由 openDB 的 promise 带出，这条拒绝是同一件事的第二份信号；不接住
+        // 它就会变成一个与真实原因无关的未处理拒绝，盖住真正该看的那条错误。
+        transaction.done.catch(() => undefined)
+
+        const target = newVersion ?? expectedVersion
+        // 唯一一次 cast：迁移遍历表清单动态建表，与 idb 要求 store 名为字面量
+        // key 的签名不兼容，收窄到建表所需的最小接口
+        const writer = db as unknown as SchemaWriter
+        for (const migration of migrations) {
+          if (migration.version > oldVersion && migration.version <= target) {
+            migration.up(writer)
+          }
         }
-      }
-    },
-    blocked() {
-      throw new UpgradeBlockedError()
-    },
-    blocking(_currentVersion, _blockedVersion, event) {
-      // 本连接正挡着另一个标签页的升级：主动让路，由对方完成升级。
-      // 不让路的话两个标签页会互相等到超时。连接从事件上取，不碰共享缓存——
-      // openDatabase 必须保持无副作用，否则测试直接调用它就会污染 getDatabase 的缓存。
-      const target = event.target as IDBDatabase | null
-      target?.close()
-      options.onConnectionClosed?.()
-    },
-  })
+      },
+      blocked() {
+        throw new UpgradeBlockedError()
+      },
+      blocking(_currentVersion, _blockedVersion, event) {
+        // 本连接正挡着另一个标签页的升级：主动让路，由对方完成升级。
+        // 不让路的话两个标签页会互相等到超时。连接从事件上取，不碰共享缓存——
+        // openDatabase 必须保持无副作用，否则测试直接调用它就会污染共享连接的缓存。
+        const target = event.target as IDBDatabase | null
+        target?.close()
+        options.onConnectionClosed?.()
+      },
+    })
+  } catch (error) {
+    if (error instanceof UpgradeBlockedError) throw error
+    if (!needsUpgrade) throw error
+    throw new MigrationFailedError(localVersion, expectedVersion, backupTaken, {
+      cause: error,
+    })
+  }
 }
 
 // ── 共享连接 ────────────────────────────────────────────────────────────────
