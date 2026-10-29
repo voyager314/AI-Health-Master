@@ -34,6 +34,10 @@ export type {
   Row,
 } from './repositories/types.ts'
 
+// 图片引用解析是只读的：界面显示一张图片只需要解析，不需要存图的能力。
+export { createBlobReader } from './indexeddb/blob.ts'
+export type { BlobReader, BlobResolution } from './indexeddb/blob.ts'
+
 // 快照是只读的：它把全库读成纯数据，不改变任何状态。导出与升级前备份共用它。
 // 结构版本同源：导入时据此判断文件要不要先补跑迁移。
 export { LATEST_SCHEMA_VERSION } from './indexeddb/migrations/index.ts'

@@ -29,7 +29,19 @@ export type BlobResolution =
   | { readonly state: 'cleared' }
   | { readonly state: 'malformed' }
 
-export interface BlobStore {
+/** 只读视图：应用层经 `@/storage` 拿到的就是这个形状 */
+export interface BlobReader {
+  /**
+   * 解析引用，三态返回。
+   *
+   * 不抛错也不返回空值：目标二进制可能已被清理，那是预期状态而非异常，
+   * 调用方据此决定显示占位还是报告数据有问题。
+   */
+  resolve(ref: string): Promise<BlobResolution>
+}
+
+/** 完整能力：写方法只经 `@/storage/internal` 暴露给命令层 */
+export interface BlobStore extends BlobReader {
   /**
    * 存入二进制，返回业务记录中应当存放的引用字符串。
    *
@@ -37,13 +49,24 @@ export interface BlobStore {
    * 以免记录因为一个空字符串而写不进去。
    */
   put(bytes: Blob, now: Now): Promise<string>
-
-  /** 解析引用，三态返回，不抛错也不返回空值 */
-  resolve(ref: string): Promise<BlobResolution>
 }
 
 /** Blob 未携带类型时的落值 */
 const DEFAULT_MIME = 'application/octet-stream'
+
+async function resolveRef(getDb: DbProvider, ref: string): Promise<BlobResolution> {
+  const id = parseStorageRef(ref)
+  if (id === null) return { state: 'malformed' }
+
+  const db = await getDb()
+  const record = await db.get('blob', id)
+  return record ? { state: 'hit', record } : { state: 'cleared' }
+}
+
+/** 只读解析器。界面显示一张图片只需要它，不需要存图的能力 */
+export function createBlobReader(getDb: DbProvider = () => getDatabase()): BlobReader {
+  return { resolve: (ref) => resolveRef(getDb, ref) }
+}
 
 export function createBlobStore(getDb: DbProvider = () => getDatabase()): BlobStore {
   return {
@@ -63,13 +86,6 @@ export function createBlobStore(getDb: DbProvider = () => getDatabase()): BlobSt
       return formatStorageRef(id)
     },
 
-    async resolve(ref) {
-      const id = parseStorageRef(ref)
-      if (id === null) return { state: 'malformed' }
-
-      const db = await getDb()
-      const record = await db.get('blob', id)
-      return record ? { state: 'hit', record } : { state: 'cleared' }
-    },
+    resolve: (ref) => resolveRef(getDb, ref),
   }
 }
