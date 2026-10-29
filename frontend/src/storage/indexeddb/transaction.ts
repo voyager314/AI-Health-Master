@@ -6,10 +6,11 @@
  * 退化成了口头约定（见 design.md D3）。handler 拿到的只有一个事务句柄，
  * 它既跳不过日志，也开不了自己的事务。
  */
-import type { BusinessStoreName, PendingOp } from '@/entities'
-import type { WriteTx } from '@/storage/repositories/types.ts'
+import type { PendingOp, StoreName } from '@/entities'
+import type { BulkOperations, WriteTx } from '@/storage/repositories/types.ts'
 import { v7 as uuidv7 } from 'uuid'
 import { getDatabase, type DbProvider } from './db.ts'
+import { clearAllInTransaction, replaceAllInTransaction } from './transfer.ts'
 import { assertValidRecord, type Now } from './write.ts'
 
 /** 写入失败的原因分类，决定界面提示什么、要不要给重试入口（FR-S01.6） */
@@ -59,12 +60,24 @@ function classify(error: unknown): WriteFailureReason {
 
 export interface CommandTransactionOptions {
   readonly commandType: string
-  /** 这条命令会写哪些业务表。少声明一个，handler 写它时会抛 NotFoundError */
-  readonly stores: readonly BusinessStoreName[]
+  /**
+   * 这条命令会用到哪些表。少声明一个，handler 访问它时会抛 NotFoundError；
+   * 多声明则无谓地扩大锁范围。
+   *
+   * 整库替换类命令会声明全部表，这是它需要的锁范围，不是越权。
+   */
+  readonly stores: readonly StoreName[]
   /** 原样记进 pending_ops，必须是可结构化克隆的纯数据 */
   readonly payload: unknown
   /** 必须在开事务之前算好（IndexedDB 事务不能跨非数据库的 await） */
   readonly now: Now
+  /**
+   * 跳过写操作日志。
+   *
+   * 整库替换时载荷就是整个数据集，再把它复制一份进日志既无意义也浪费配额；
+   * 而这条命令本身也不需要在云端重放。只有「整库替换」这一类命令该用它。
+   */
+  readonly skipOpLog?: boolean
   readonly getDb?: DbProvider
 }
 
@@ -80,26 +93,41 @@ export interface CommandTransactionOptions {
  */
 export async function runCommandTransaction<T>(
   options: CommandTransactionOptions,
-  run: (tx: WriteTx) => Promise<T>,
+  run: (tx: WriteTx, bulk: BulkOperations) => Promise<T>,
 ): Promise<T> {
   const getDb = options.getDb ?? (() => getDatabase())
   const db = await getDb()
 
-  const op: PendingOp = {
-    id: uuidv7(),
-    command_type: options.commandType,
-    payload: options.payload,
-    applied_at: options.now.iso,
-    tz_offset_minutes: options.now.tzOffsetMinutes,
-  }
-  // 日志记录本身也要合规，否则一条坏日志会把整条命令连累回滚
-  assertValidRecord('pending_ops', op)
+  const stores: StoreName[] = options.skipOpLog
+    ? [...options.stores]
+    : [...new Set([...options.stores, 'pending_ops' as const])]
 
-  const tx = db.transaction([...options.stores, 'pending_ops'], 'readwrite')
+  const op: PendingOp | null = options.skipOpLog
+    ? null
+    : {
+        id: uuidv7(),
+        command_type: options.commandType,
+        payload: options.payload,
+        applied_at: options.now.iso,
+        tz_offset_minutes: options.now.tzOffsetMinutes,
+      }
+
+  if (op) {
+    // 日志记录本身也要合规，否则一条坏日志会把整条命令连累回滚
+    assertValidRecord('pending_ops', op)
+  }
+
+  const tx = db.transaction(stores, 'readwrite')
+  const handle = tx as unknown as WriteTx
+
+  const bulk: BulkOperations = {
+    replaceAll: (records) => replaceAllInTransaction(db, handle, records),
+    clearAll: () => clearAllInTransaction(db, handle),
+  }
 
   try {
-    const result = await run(tx as unknown as WriteTx)
-    await tx.objectStore('pending_ops').put(op)
+    const result = await run(handle, bulk)
+    if (op) await tx.objectStore('pending_ops').put(op)
     await tx.done
     return result
   } catch (error) {

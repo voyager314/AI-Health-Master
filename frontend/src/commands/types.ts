@@ -5,21 +5,23 @@
  * 开不了自己的事务、跳不过 `pending_ops` 日志、看不到 `user_id`。这是约束 9 与
  * 约束 3 在 API 形状上的落点。
  */
-import type { BusinessStoreName, ValidationIssue } from '@/entities'
-import type { Now, RepositorySet, WriteTx } from '@/storage/internal'
+import type { StoreName, ValidationIssue } from '@/entities'
+import type { BulkOperations, Now, RepositorySet, WriteTx } from '@/storage/internal'
 
 /**
  * handler 能用的全部能力。
  *
- * 只有事务句柄、已算好的时刻、以及 Repository 集合——没有任何可能触发外部异步的
- * 东西。这是 design.md D3 的「禁止 await 非 IndexedDB Promise」在签名上的体现：
+ * 只有事务句柄、已算好的时刻、Repository 集合与整库替换能力——没有任何可能触发
+ * 外部异步的东西。这是「事务内禁止 await 非数据库 Promise」在签名上的体现：
  * 不是靠约定，而是手里没有能违反它的工具。
  */
 export interface CommandContext {
   readonly tx: WriteTx
-  /** 由 bus 在开事务**之前**算好，handler 不要再取当前时间 */
+  /** 由总线在开事务**之前**算好，handler 不要再取当前时间 */
   readonly now: Now
   readonly repos: RepositorySet
+  /** 整库级操作。清空与导入之外，命令不应该用到它 */
+  readonly bulk: BulkOperations
 }
 
 export interface CommandDefinition<P = unknown, R = void> {
@@ -27,11 +29,20 @@ export interface CommandDefinition<P = unknown, R = void> {
   readonly type: string
 
   /**
-   * 这条命令会写哪些业务表。事务按此开。
+   * 这条命令会用到哪些表。事务按此开。
    *
-   * 少声明一张表，handler 写它时会抛 NotFoundError；多声明则会无谓地扩大锁范围。
+   * 少声明一张表，handler 访问它时会抛 NotFoundError；多声明则会无谓地扩大锁范围。
+   * 整库替换类命令声明全部表——那是它确实需要的锁范围。
    */
-  readonly stores: readonly BusinessStoreName[]
+  readonly stores: readonly StoreName[]
+
+  /**
+   * 跳过写操作日志。
+   *
+   * 整库替换时载荷就是整个数据集，把它再复制一份进日志既无意义也浪费配额；
+   * 这类命令也不需要跨设备重放。只有「整库替换」该用它。
+   */
+  readonly skipOpLog?: boolean
 
   /**
    * 校验载荷。返回非空问题列表则拒绝执行，且不碰数据库。

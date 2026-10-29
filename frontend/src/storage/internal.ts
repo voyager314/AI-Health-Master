@@ -28,9 +28,12 @@ export type {
 export type { DbProvider } from './indexeddb/db.ts'
 
 export type {
+  BulkOperations,
   IndexName,
   ListOptions,
   QuerySpec,
+  ReadableRepository,
+  ReadableRepositorySet,
   Repository,
   RepositorySet,
   Row,

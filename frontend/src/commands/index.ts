@@ -13,6 +13,7 @@
  */
 import { markExported } from './appMeta.ts'
 import { createCommandBus } from './bus.ts'
+import { clearAllData, importSnapshot } from './data.ts'
 import type { CommandDefinition } from './types.ts'
 
 /**
@@ -23,6 +24,8 @@ import type { CommandDefinition } from './types.ts'
  */
 export const COMMANDS: readonly CommandDefinition<never, unknown>[] = [
   markExported as CommandDefinition<never, unknown>,
+  importSnapshot as CommandDefinition<never, unknown>,
+  clearAllData as CommandDefinition<never, unknown>,
 ]
 
 const bus = createCommandBus({ definitions: COMMANDS })

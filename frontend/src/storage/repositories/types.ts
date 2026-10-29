@@ -62,6 +62,21 @@ export interface ListOptions {
 }
 
 /**
+ * 整库替换能力。
+ *
+ * 单独抽出来而不是让调用方自己遍历各 Repository：清空与导入要落在一个事务里，
+ * 而各 Repository 的写方法各自开事务，无法组合成一次原子操作。
+ */
+export interface BulkOperations {
+  /** 清空全部表并按表名写入。未出现的表被清空但不写入 */
+  replaceAll(
+    records: Readonly<Record<string, readonly Record<string, unknown>[]>>,
+  ): Promise<void>
+  /** 清空全部表，不写入 */
+  clearAll(): Promise<void>
+}
+
+/**
  * 只读视图：应用层经 `@/storage` 拿到的就是这个形状。
  *
  * 写方法不在这里，所以页面写 `exerciseRepo.put(...)` 是 TypeScript 编译错误

@@ -71,9 +71,10 @@ export function createCommandBus(options: CommandBusOptions): CommandBus {
         stores: definition.stores,
         payload,
         now,
+        skipOpLog: definition.skipOpLog,
         getDb: options.getDb,
       },
-      (tx) => definition.handler({ tx, now, repos }, payload as never),
+      (tx, bulk) => definition.handler({ tx, now, repos, bulk }, payload as never),
     )
   }
 
