@@ -8,6 +8,7 @@
  * 快照按连接当时实际存在的 store 遍历，而不是按当前代码里的表清单：备份发生在
  * 升级之前，那时库里的结构属于旧版本，可能比现在少几张表。
  */
+import type { ExportableSnapshot } from '@/domain'
 import type { IDBPDatabase } from 'idb'
 import { getDatabase, type DbProvider } from './db.ts'
 import type { AppDb } from './schema.ts'
@@ -20,14 +21,14 @@ import type { AppDb } from './schema.ts'
  */
 const EXCLUDED_STORES = new Set(['pending_ops', 'blob'])
 
-export interface DatabaseSnapshot {
-  /** 取快照时数据库的结构版本，决定导入方需要补跑哪几条迁移 */
-  readonly schema_version: number
-  /** 取快照的 UTC 时刻 */
-  readonly exported_at: string
-  /** store 名到该表全部记录的映射，记录字段与库中完全一致，不做任何转换 */
-  readonly records: Readonly<Record<string, readonly Record<string, unknown>[]>>
-}
+/**
+ * 全库快照。
+ *
+ * 形状由领域层定义——它同时描述导出文件的结构，两者是同一个东西：升级前的备份
+ * 与用户主动导出取的必须是同一份数据，否则会出现「备份能恢复、导出不能」。
+ * 存储层只负责产出它，不另外定义一遍。
+ */
+export type DatabaseSnapshot = ExportableSnapshot
 
 /** 已软删除的记录不进快照；没有这个字段的 store 全部保留 */
 function isLive(record: Record<string, unknown>): boolean {

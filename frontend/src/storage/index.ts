@@ -33,3 +33,9 @@ export type {
   ReadableRepositorySet,
   Row,
 } from './repositories/types.ts'
+
+// 快照是只读的：它把全库读成纯数据，不改变任何状态。导出与升级前备份共用它。
+// 结构版本同源：导入时据此判断文件要不要先补跑迁移。
+export { LATEST_SCHEMA_VERSION } from './indexeddb/migrations/index.ts'
+export { snapshotDatabase } from './indexeddb/dump.ts'
+export type { DatabaseSnapshot } from './indexeddb/dump.ts'
