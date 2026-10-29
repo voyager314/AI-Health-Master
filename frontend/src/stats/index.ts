@@ -1,16 +1,12 @@
 /**
  * stats —— 时间窗口计算
  *
- * timeWindow.ts 是全仓库**唯一**允许出现自然日 / 自然周边界算术的位置（约束 6）。
- * 其余任何地方禁止自行推算日界或周界。
+ * 自然日与自然周的边界只在本目录的 `timeWindow` 模块内实现，其余任何位置
+ * 禁止自行推算日界或周界。
  *
- * 归属按记录自身的 `tz_offset_minutes` 判定，不是按设备当前时区——
- * 否则用户跨时区后周统计会错位。自然周为周一至周日。详见 design.md D5。
- *
- * ⚠️ 禁止导入 storage/**、commands/**、telemetry/**（由 ESLint 强制）。
- *
- * 允许导入：entities/
- * 可被导入：任何层
+ * 本层禁止导入存储、命令与埋点：计算必须是纯函数，入参即全部输入。
+ * 这样它既能脱离数据库单测，将来也能被等价的 SQL 聚合替换并做双实现对照。
  */
 
-export {}
+export { dayKeyOf, isSameWeek, weekInterval, weekKeyOf } from './timeWindow.ts'
+export type { DayKey, Interval } from './timeWindow.ts'
