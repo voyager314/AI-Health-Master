@@ -1,14 +1,24 @@
 /**
  * shared —— UI 基元与通用工具
  *
- * 可用性基线在这里落地：主按钮可点击区域 ≥ 44×44 px、核心操作在屏幕下三分之一、
- * 文本对比度 ≥ 4.5:1、深色模式冷启动无全白帧。
+ * 可用性基线在这里落地：主按钮可点击区域不小于 44×44 px、核心操作位于屏幕下
+ * 三分之一、文本对比度不低于 4.5:1、深色模式冷启动不出现全白帧。
  *
  * ⚠️ 禁止导入 storage/indexeddb/**（约束 1）。
  *
  * 允许导入：entities/、stats/、domain/
  * 可被导入：任何层
  */
+
+export { Button } from './Button.tsx'
+export type { ButtonProps } from './Button.tsx'
+export { EmptyState } from './EmptyState.tsx'
+export type { EmptyStateProps } from './EmptyState.tsx'
+export { Skeleton } from './Skeleton.tsx'
+export type { SkeletonProps } from './Skeleton.tsx'
+export { NetworkGate } from './NetworkGate.tsx'
+export type { NetworkGateProps } from './NetworkGate.tsx'
+export { useOnline } from './useOnline.ts'
 
 export { createDownloadSink } from './fileSink.ts'
 export type { FileSink } from './fileSink.ts'

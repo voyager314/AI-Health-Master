@@ -1,10 +1,11 @@
 /**
- * features/placeholder —— 后续版本页面的占位页
+ * features/placeholder —— 已规划但尚未实现的页面
  *
- * 本 change 只交付地基，训练记录 / 体重 / 饮食 / 建议的页面位置先用占位页占住，
- * 使路由可直接访问而不是 404（FR-S03.6）。
+ * 占位页让路由可以直接访问已规划的位置而不是落到 404。新功能上线时，
+ * 把路由表里对应的占位页换成真实页面即可。
  *
  * 允许导入：shared/
  */
 
-export {}
+export { PlaceholderPage } from './PlaceholderPage.tsx'
+export type { PlaceholderPageProps } from './PlaceholderPage.tsx'

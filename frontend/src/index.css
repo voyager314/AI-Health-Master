@@ -1,22 +1,28 @@
 /*
  * 全局基线样式。
  *
- * 这里只放「任何页面都成立」的基础设定。移动端可用性基线（44×44 px 触达区域、
- * 核心操作在屏幕下三分之一、对比度 ≥ 4.5:1）在任务 11.5 落地到 shared/ 的 UI 基元上。
+ * 可用性基线在这一层集中定义：触达区域不小于 44×44 px、核心操作落在屏幕下三分之一、
+ * 文本与背景对比度不低于 4.5:1、深色环境冷启动不出现全白帧。
  *
- * `color-scheme: light dark` 现在就设，是因为它决定了深色模式下浏览器用什么颜色绘制
- * 首帧背景——不设就会在深色环境冷启动时闪一下全白（FR-S03.5）。
+ * `color-scheme: light dark` 与首帧底色必须同时设：只设后者的话浏览器仍会按浅色
+ * 绘制初始背景，深色模式启动时会闪一下白。
  */
 
 :root {
   color-scheme: light dark;
 
-  /* 触达区域下限，shared/ 的按钮基元据此设置 min-width / min-height */
+  /* 触达区域下限，按钮与导航格据此设置最小尺寸 */
   --tap-target-min: 44px;
 
   --bg: light-dark(#ffffff, #121316);
+  --surface: light-dark(#f4f5f7, #1b1d22);
+  --surface-strong: light-dark(#e9ebef, #24272e);
   --fg: light-dark(#1a1b1e, #e8e9ea);
-  --fg-muted: light-dark(#5c5f66, #a1a4ab);
+  --fg-muted: light-dark(#565a62, #a6aab2);
+  --accent: light-dark(#1f5fd8, #7fa8ff);
+  --accent-fg: light-dark(#ffffff, #10131a);
+  --danger: light-dark(#b3261e, #ff8f86);
+  --border: light-dark(#dcdfe5, #33373f);
 
   font-family:
     system-ui,
@@ -45,32 +51,342 @@ body {
 body {
   background: var(--bg);
   color: var(--fg);
-  /* 去掉移动端点击时的蓝色高亮块，否则主按钮按下时观感很廉价 */
+  /* 去掉移动端点击时的蓝色高亮块，否则按钮按下时观感很廉价 */
   -webkit-tap-highlight-color: transparent;
 }
 
-#root {
-  min-height: 100%;
-  /* 适配刘海屏与底部手势条：核心操作要落在屏幕下三分之一且不被遮挡 */
-  padding: env(safe-area-inset-top) env(safe-area-inset-right)
-    env(safe-area-inset-bottom) env(safe-area-inset-left);
+/* ── 外壳布局 ───────────────────────────────────────────────────────────── */
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
 }
 
-.boot {
+.app-shell__content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  /* 底部留出导航高度与手势条，页面最后的按钮不会被压住 */
+  padding: 1rem 1rem calc(var(--tap-target-min) + 2.5rem + env(safe-area-inset-bottom));
+}
+
+/* ── 页面 ───────────────────────────────────────────────────────────────── */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.page__header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.page__header h1 {
+  margin: 0;
+  font-size: 1.5rem;
+  line-height: 1.3;
+}
+
+.page__back {
+  align-self: flex-start;
+  min-height: var(--tap-target-min);
+  display: inline-flex;
+  align-items: center;
+  color: var(--fg-muted);
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+/* ── 按钮 ───────────────────────────────────────────────────────────────── */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  min-height: var(--tap-target-min);
+  padding: 0 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.625rem;
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+  font-size: 1rem;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.btn--primary {
+  border-color: transparent;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-weight: 600;
+}
+
+.btn--quiet {
+  border-color: transparent;
+  background: transparent;
+  color: var(--fg-muted);
+}
+
+.btn--block {
+  width: 100%;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ── 底部导航 ───────────────────────────────────────────────────────────── */
+
+.tabs {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.tabs__item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* 整格可点：训练间隙手指带汗，格内留白越少越不容易点空 */
+  min-height: calc(var(--tap-target-min) + 8px);
+  color: var(--fg-muted);
+  font-size: 0.9rem;
+  text-decoration: none;
+}
+
+.tabs__item--active {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* ── 分组与清单 ─────────────────────────────────────────────────────────── */
+
+.group {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  justify-content: center;
-  min-height: 100vh;
-  padding: 1.5rem;
 }
 
-.boot h1 {
+.group__title {
   margin: 0;
-  font-size: 1.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--fg-muted);
 }
 
-.boot p {
+.group__note {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--fg-muted);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.list__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: var(--tap-target-min);
+  padding: 0 0.875rem;
+  color: var(--fg);
+  text-decoration: none;
+}
+
+.list__row + .list__row {
+  border-top: 1px solid var(--border);
+}
+
+.list__chevron {
+  color: var(--fg-muted);
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* ── 统计 ───────────────────────────────────────────────────────────────── */
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.stats__item {
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--surface);
+}
+
+.stats__item dt {
+  font-size: 0.85rem;
+  color: var(--fg-muted);
+}
+
+.stats__item dd {
+  margin: 0.25rem 0 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+/* ── 空状态与加载占位 ───────────────────────────────────────────────────── */
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1.25rem;
+  border: 1px dashed var(--border);
+  border-radius: 0.75rem;
+}
+
+.empty__message {
   margin: 0;
   color: var(--fg-muted);
+}
+
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.skeleton__line {
+  height: 1rem;
+  border-radius: 0.375rem;
+  background: var(--surface-strong);
+  animation: skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+.skeleton__line:first-child {
+  width: 60%;
+}
+
+@keyframes skeleton-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton__line {
+    animation: none;
+  }
+}
+
+/* ── 提示条 ─────────────────────────────────────────────────────────────── */
+
+.notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 1rem;
+  background: var(--surface-strong);
+  border-bottom: 1px solid var(--border);
+}
+
+.notice--muted {
+  background: var(--surface);
+}
+
+.notice__text {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.notice__actions {
+  display: flex;
+  gap: 0.25rem;
+}
+
+/* ── 反馈 ───────────────────────────────────────────────────────────────── */
+
+.feedback {
+  margin: 0;
+  padding: 0.75rem;
+  border-radius: 0.625rem;
+  background: var(--surface);
+  font-size: 0.9rem;
+}
+
+.feedback--error {
+  color: var(--danger);
+}
+
+/* ── 断网门禁 ───────────────────────────────────────────────────────────── */
+
+.gate {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.gate--offline .gate__content {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.gate__hint {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--fg-muted);
+}
+
+/* ── 免责声明 ───────────────────────────────────────────────────────────── */
+
+.disclaimer {
+  margin: auto 0 0;
+  padding-top: 1.5rem;
+  font-size: 0.8rem;
+  color: var(--fg-muted);
+}
+
+/* ── 工具类 ─────────────────────────────────────────────────────────────── */
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }

@@ -9,4 +9,6 @@
  * 允许导入：entities/、features/、commands/、storage/、domain/、stats/、telemetry/、shared/
  */
 
-export {}
+export { AppShell } from './AppShell.tsx'
+export { isNavActive, navItems, routeElements } from './routes.tsx'
+export type { NavItem, RouteEntry } from './routes.tsx'
