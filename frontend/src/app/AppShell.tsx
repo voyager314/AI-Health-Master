@@ -12,6 +12,7 @@
  */
 import { BrowserRouter, Route, Routes } from 'react-router'
 
+import { AppOpenTracker } from './AppOpenTracker.tsx'
 import { BottomNav } from './BottomNav.tsx'
 import { ConnectionNotice } from './ConnectionNotice.tsx'
 import { ConsentGate } from './ConsentGate.tsx'
@@ -27,6 +28,7 @@ export function AppShell() {
       <ConnectionNotice />
       <div className="app-shell">
         <ConsentGate>
+          <AppOpenTracker />
           <div className="app-shell__content">
             <Routes>
               {routeElements.map(({ path, element }) => (

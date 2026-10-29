@@ -25,8 +25,13 @@ import { defineConfig, globalIgnores } from 'eslint/config'
  */
 const layer = (p) => [`@/${p}`, `@/${p}/**`, `**/${p}`, `**/${p}/**`]
 
-/** 单个文件（不是目录），如 storage/internal.ts */
-const file = (p) => [`@/${p}`, `**/${p}`]
+/**
+ * 单个文件（不是目录），如 storage/internal.ts。
+ *
+ * 必须同时覆盖带扩展名的写法：这个仓库的导入普遍写成 `@/storage/internal.ts`，
+ * 只匹配不带后缀的形式会让这些导入整条绕过检查。
+ */
+const file = (p) => [`@/${p}`, `**/${p}`, `@/${p}.ts`, `**/${p}.ts`]
 
 const DB_IMPL = layer('storage/indexeddb')
 const STORAGE_ANY = layer('storage')

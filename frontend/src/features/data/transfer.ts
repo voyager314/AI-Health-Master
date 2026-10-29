@@ -22,6 +22,7 @@ import {
 } from '@/domain'
 import { LATEST_SCHEMA_VERSION, snapshotDatabase, type DatabaseSnapshot } from '@/storage'
 import type { FileSink } from '@/shared'
+import { trackClearData, trackExport } from '@/telemetry'
 
 /** 导出格式。JSON 可反向导入，CSV 只供查看 */
 export type ExportFormat = 'json' | 'csv'
@@ -36,6 +37,11 @@ export interface DataTransferDeps {
   readonly now: () => Date
   /** 当前应用支持的库结构版本，导入时据此判断要不要补跑迁移 */
   readonly schemaVersion: number
+  /** 埋点。默认为真实的本地记录；测试注入以便断言事件属性 */
+  readonly telemetry?: {
+    readonly exportDone?: typeof trackExport
+    readonly clearDone?: typeof trackClearData
+  }
 }
 
 export interface ExportOptions {
@@ -124,6 +130,11 @@ export function createDataTransfer(deps: DataTransferDeps): DataTransfer {
       }
 
       await deps.applyCommand('app_meta/mark_exported')
+      // 记录格式与文件数，不记任何内容：统计用途止于「导出了没有、导出了几个」
+      await (deps.telemetry?.exportDone ?? trackExport)({
+        format: options.format === 'csv' ? 'csv' : 'json',
+        files: files.length,
+      })
       return { files }
     },
 
@@ -152,7 +163,16 @@ export function createDataTransfer(deps: DataTransferDeps): DataTransfer {
     async clearAll(options) {
       if (!options.confirmed) return { cleared: false }
 
+      // 先数一遍：清空之后这些数字就没了，而「清了个空库」与「删掉多年积累」
+      // 是两件不同的事
+      const before = await deps.snapshot(takenAt())
+      const records = Object.values(before.records).reduce((sum, rows) => sum + rows.length, 0)
+
       await deps.applyCommand('data/clear_all')
+
+      // 必须在清空写完之后记录：写晚了会被这次清空一并删掉，写早了则清空失败时
+      // 留下一条没发生过的记录
+      await (deps.telemetry?.clearDone ?? trackClearData)({ records })
       return { cleared: true }
     },
   }

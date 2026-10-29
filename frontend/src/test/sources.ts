@@ -17,3 +17,17 @@ const rawCss = import.meta.glob('../**/*.css', {
 /** 全局样式表的完整文本 */
 export const indexCss: string =
   rawCss['../index.css'] ?? rawCss['/src/index.css'] ?? Object.values(rawCss)[0] ?? ''
+
+const rawTs = import.meta.glob(['../telemetry/**/*.ts', '!../telemetry/**/*.test.ts'], {
+  eager: true,
+  query: '?raw',
+  import: 'default',
+}) as Record<string, string>
+
+/**
+ * 埋点层的源文件内容。
+ *
+ * 用于断言这一层没有引入任何网络调用：埋点只写本地，一旦有人加了上报，
+ * 这条断言会先失败，而不是等用户的数据被发出去才发现。
+ */
+export const telemetrySources: readonly string[] = Object.values(rawTs)
