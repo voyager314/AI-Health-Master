@@ -13,7 +13,7 @@
  * 允许导入：entities/、storage/repositories/、storage/indexeddb/
  * 可被导入：仅 commands/**
  */
-export { repositories, repositoryFor, createRepositories } from './repositories/index.ts'
+export { repositories, createRepositories } from './repositories/index.ts'
 
 export {
   StorageWriteError,
@@ -44,7 +44,6 @@ export {
   assertValidRecord,
   createNow,
   withAuditForCreate,
-  withAuditForRestore,
   withAuditForSoftDelete,
   withAuditForUpdate,
 } from './indexeddb/write.ts'

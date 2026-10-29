@@ -10,7 +10,6 @@ import type { BusinessStoreName, Uuid } from '@/entities'
 import type {
   ListOptions,
   QuerySpec,
-  ReadableRepository,
   Repository,
   Row,
   WriteTx,
@@ -145,14 +144,3 @@ export function createIndexedDbRepository<N extends BusinessStoreName>(
   return { list, get, query, put, remove, clear }
 }
 
-/**
- * 把完整 Repository 收窄成只读视图。
- *
- * 只做类型收窄，不包装对象——运行时仍是同一个实例。约束 9 的强制发生在编译期：
- * 应用层拿到的静态类型上没有 put/remove/clear，调用它们过不了 tsc。
- */
-export function asReadable<N extends BusinessStoreName>(
-  repo: Repository<N>,
-): ReadableRepository<N> {
-  return repo
-}

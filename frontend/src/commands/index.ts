@@ -37,9 +37,6 @@ export function applyCommand(type: string, payload?: unknown): Promise<unknown> 
   return bus.apply(type, payload)
 }
 
-/** 已注册的命令类型，供诊断使用 */
-export const commandTypes = bus.types
-
 export { createCommandBus } from './bus.ts'
 export type { CommandBus, CommandBusOptions } from './bus.ts'
 

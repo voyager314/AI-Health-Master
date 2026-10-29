@@ -7,7 +7,6 @@
 import type {
   AppMeta,
   BodyMetric,
-  BusinessRecord,
   Exercise,
   Meal,
   MealItem,
@@ -155,17 +154,3 @@ export function anAppMeta(overrides: Partial<CreateInput<AppMeta>> = {}): Create
   }
 }
 
-/** 9 张业务表各一条，顺序与 BUSINESS_STORE_NAMES 一致，供「覆盖全部业务表」的测试使用 */
-export const ALL_BUSINESS_INPUTS: ReadonlyArray<
-  readonly [string, CreateInput<BusinessRecord>]
-> = [
-  ['exercise', anExercise()],
-  ['workout', aWorkout()],
-  ['workout_exercise', aWorkoutExercise()],
-  ['set_entry', aSetEntry()],
-  ['body_metric', aBodyMetric()],
-  ['meal', aMeal()],
-  ['meal_item', aMealItem()],
-  ['target', aTarget()],
-  ['app_meta', anAppMeta()],
-] as ReadonlyArray<readonly [string, CreateInput<BusinessRecord>]>

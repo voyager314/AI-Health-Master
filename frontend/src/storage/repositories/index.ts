@@ -8,7 +8,7 @@
  * 每张表恰有一个 Repository，接口形状由 `RepositorySet` 在编译期钉住——
  * 漏掉一张表或多出一张表都过不了类型检查。
  */
-import { BUSINESS_STORE_NAMES, type BusinessStoreName } from '@/entities'
+import { BUSINESS_STORE_NAMES } from '@/entities'
 import {
   createIndexedDbRepository,
   type DbProvider,
@@ -35,14 +35,6 @@ export const repositories: RepositorySet = createRepositories()
 
 /** 同一批实例的只读视图。类型收窄，运行时不额外包装 */
 export const readableRepositories: ReadableRepositorySet = repositories
-
-/** 按 store 名取单个 Repository，供需要泛型遍历的场景（导出、导入、清空）使用 */
-export function repositoryFor<N extends BusinessStoreName>(
-  name: N,
-  set: RepositorySet = repositories,
-) {
-  return set[name]
-}
 
 export type { DbProvider }
 export * from './types.ts'

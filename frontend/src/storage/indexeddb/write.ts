@@ -167,11 +167,3 @@ export function withAuditForSoftDelete<T extends BusinessRecord>(
   return { ...existing, deleted_at: moment.iso, updated_at: moment.iso }
 }
 
-/** 恢复一条软删除的记录（导入与历史纠错场景会用到） */
-export function withAuditForRestore<T extends BusinessRecord>(
-  existing: T,
-  moment: Now,
-): T {
-  if (existing.deleted_at === null) return existing
-  return { ...existing, deleted_at: null, updated_at: moment.iso }
-}

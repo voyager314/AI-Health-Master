@@ -12,7 +12,6 @@ import {
   assertValidRecord,
   createNow,
   withAuditForCreate,
-  withAuditForRestore,
   withAuditForSoftDelete,
   withAuditForUpdate,
 } from '@/storage/indexeddb/write.ts'
@@ -153,11 +152,6 @@ describe('软删除（约束 5）', () => {
     )
     expect(twice.deleted_at).toBe('2026-10-29T04:00:00.000Z')
     expect(twice).toBe(once)
-  })
-
-  it('恢复把 deleted_at 清回 null', () => {
-    const restored = withAuditForRestore(withAuditForSoftDelete(base, at), at)
-    expect(restored.deleted_at).toBeNull()
   })
 })
 
