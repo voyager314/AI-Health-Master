@@ -18,3 +18,11 @@ export type { ExportableSnapshot, ExportFile } from './export.ts'
 export { ImportValidationError, parseImportFile } from './import.ts'
 export type { ImportOptions, ParsedImport, RecordUpgrade } from './import.ts'
 
+export {
+  SUMMARY_NAME_MAX_LENGTH,
+  daySummary,
+  filledMetricKinds,
+  groupByDay,
+} from './workoutLog.ts'
+export type { DayGroup, DaySummary } from './workoutLog.ts'
+
