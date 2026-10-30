@@ -33,7 +33,7 @@
 查询必须只使用「按主键或单字段索引取数 + 内存过滤」的方式。禁止依赖复合游标或多字段联合游标承载业务逻辑——每个 Repository 的查询都必须能等价表达为一条单表 `SELECT ... WHERE` 语句。
 
 #### Scenario: 每实体一个 Repository 且接口一致
-- **GIVEN** 9 张业务表
+- **GIVEN** 6 张业务表
 - **WHEN** 检查其 Repository
 - **THEN** 每张表恰有一个 Repository
 - **AND** 每个 Repository 暴露上述 6 个方法，签名形状一致
