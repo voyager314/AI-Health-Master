@@ -12,9 +12,9 @@
 
 ## 3. 存储能力（约束 5 的第二个物理删除例外）
 
-- [ ] 3.1 `Repository` 契约新增 `purge(ids, tx?)`：按主键集合物理删除，返回删除条数；空集合直接返回 0 且不产生写入。完成判据：`repository.test.ts` 断言只删传入的主键、其余不受影响、空集合不写入
-- [ ] 3.2 `storage/indexeddb/repository.ts` 实现 `purge`，在事务句柄上按主键逐条删除。完成判据：命令内调用与独立调用两条路径都通过
-- [ ] 3.3 只读视图不暴露 `purge`。完成判据：`constraints.test.ts` 的写入口断言继续通过，页面拿不到该方法
+- [x] 3.1 `Repository` 契约新增 `purge(ids, tx?)`：按主键集合物理删除，返回删除条数；空集合直接返回 0 且不产生写入。完成判据：`repository.test.ts` 断言只删传入的主键、其余不受影响、空集合不写入
+- [x] 3.2 `storage/indexeddb/repository.ts` 实现 `purge`，在事务句柄上按主键逐条删除。完成判据：命令内调用与独立调用两条路径都通过
+- [x] 3.3 只读视图不暴露 `purge`。完成判据：`constraints.test.ts` 的写入口断言继续通过，页面拿不到该方法
 
 ## 4. 命令层（约束 9）
 

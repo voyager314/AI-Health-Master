@@ -4,6 +4,7 @@
 import { BUSINESS_STORE_NAMES } from '@/entities'
 import { closeDatabase, openDatabase } from '@/storage/indexeddb/db.ts'
 import type { AppDb } from '@/storage/indexeddb/schema.ts'
+import { runCommandTransaction } from '@/storage/indexeddb/transaction.ts'
 import { createNow, withAuditForCreate, withAuditForUpdate } from '@/storage/indexeddb/write.ts'
 import { createRepositories } from '@/storage/repositories/index.ts'
 import type { RepositorySet } from '@/storage/repositories/types.ts'
@@ -37,8 +38,8 @@ describe('接口形状', () => {
     expect(Object.keys(repos)).toHaveLength(6)
   })
 
-  it('每个 Repository 都暴露统一的 6 个方法', () => {
-    const expected = ['list', 'get', 'put', 'remove', 'query', 'clear']
+  it('每个 Repository 都暴露统一的 7 个方法', () => {
+    const expected = ['list', 'get', 'put', 'remove', 'query', 'purge', 'clear']
     for (const name of BUSINESS_STORE_NAMES) {
       const repo = repos[name] as unknown as Record<string, unknown>
       for (const method of expected) {
@@ -196,6 +197,102 @@ describe('查询', () => {
   it('limit 在过滤之后应用', async () => {
     const limited = await repos.workout_log.query({ index: 'user_id', equals: 'local', limit: 2 })
     expect(limited).toHaveLength(2)
+  })
+})
+
+describe('批量物理删除', () => {
+  /** 写入 5 条运动记录，返回它们的主键 */
+  async function seedFive(): Promise<string[]> {
+    const now = createNow()
+    const ids: string[] = []
+    for (let i = 0; i < 5; i += 1) {
+      const record = withAuditForCreate(
+        'workout_log',
+        aWorkoutLog({ logged_at: `2026-10-0${i + 1}T10:00:00.000Z` }),
+        now,
+      )
+      await repos.workout_log.put(record)
+      ids.push(record.id)
+    }
+    return ids
+  }
+
+  it('只删传入的主键，其余不受影响', async () => {
+    const ids = await seedFive()
+
+    const removed = await repos.workout_log.purge([ids[0]!, ids[2]!])
+
+    expect(removed).toBe(2)
+    const remaining = await repos.workout_log.list()
+    expect(remaining.map((r) => r.id).sort()).toEqual([ids[1]!, ids[3]!, ids[4]!].sort())
+  })
+
+  it('物理移除，不留墓碑', async () => {
+    const [id] = await seedFive()
+
+    await repos.workout_log.purge([id!])
+
+    expect(await repos.workout_log.get(id!)).toBeUndefined()
+    expect(await repos.workout_log.list({ includeDeleted: true })).toHaveLength(4)
+  })
+
+  it('空集合返回 0 且不产生写入', async () => {
+    const ids = await seedFive()
+
+    expect(await repos.workout_log.purge([])).toBe(0)
+    expect(await repos.workout_log.list({ includeDeleted: true })).toHaveLength(ids.length)
+  })
+
+  it('不存在的主键被跳过，不计入删除条数', async () => {
+    const [id] = await seedFive()
+
+    const removed = await repos.workout_log.purge([
+      id!,
+      '01a182ae-25f7-7661-b587-84998ff6f6df',
+    ])
+
+    expect(removed).toBe(1)
+    expect(await repos.workout_log.list()).toHaveLength(4)
+  })
+
+  it('同一个主键重复传入只删一次', async () => {
+    const [id] = await seedFive()
+
+    expect(await repos.workout_log.purge([id!, id!, id!])).toBe(1)
+    expect(await repos.workout_log.list()).toHaveLength(4)
+  })
+
+  it('只影响被调用的那张表', async () => {
+    const now = createNow()
+    const both = withAuditForCreate('workout_log', aWorkoutLog(), now)
+    const metric = withAuditForCreate('body_metric', aBodyMetric(), now)
+    await repos.workout_log.put(both)
+    await repos.body_metric.put(metric)
+
+    await repos.workout_log.purge([both.id])
+
+    expect(await repos.body_metric.list()).toHaveLength(1)
+  })
+
+  it('在命令事务内调用与独立调用结果一致', async () => {
+    const ids = await seedFive()
+
+    await runCommandTransaction(
+      {
+        commandType: 'test/purge_in_tx',
+        stores: ['workout_log'],
+        payload: null,
+        now: createNow(),
+        getDb: async () => db,
+      },
+      async (tx) => {
+        const removed = await repos.workout_log.purge([ids[0]!, ids[1]!], tx)
+        expect(removed).toBe(2)
+      },
+    )
+
+    expect(await repos.workout_log.list()).toHaveLength(3)
+    expect(await repos.workout_log.get(ids[0]!)).toBeUndefined()
   })
 })
 

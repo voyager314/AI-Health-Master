@@ -58,6 +58,8 @@ interface TxObjectStore {
   put(value: unknown): Promise<unknown>
   get(key: string): Promise<unknown>
   getAll(): Promise<unknown[]>
+  getAllKeys(): Promise<IDBValidKey[]>
+  delete(key: string): Promise<unknown>
   index(name: string): { getAll(query?: IDBKeyRange): Promise<unknown[]> }
   clear(): Promise<unknown>
 }
@@ -166,6 +168,29 @@ export function createIndexedDbRepository<N extends BusinessStoreName>(
     return removed
   }
 
+  async function purge(ids: readonly Uuid[], tx?: WriteTx): Promise<number> {
+    // 空集合直接返回：开事务本身也是一次写入，没有可删的东西就没有必要开
+    if (ids.length === 0) return 0
+
+    // 存在性靠 getAllKeys 一次取齐，而不是逐条 get：后者会把每条记录完整反序列化，
+    // 而在只关心「键在不在」的路径上，那是纯开销
+    const unique = [...new Set(ids)]
+
+    if (tx) {
+      const os = storeFromTx(tx, store)
+      const present = new Set<string>((await os.getAllKeys()).map(String))
+      const existing = unique.filter((id) => present.has(id))
+      for (const id of existing) await os.delete(id)
+      return existing.length
+    }
+
+    const db = await getDb()
+    const present = new Set<string>((await db.getAllKeys(store)).map(String))
+    const existing = unique.filter((id) => present.has(id))
+    for (const id of existing) await db.delete(store, id)
+    return existing.length
+  }
+
   async function clear(tx?: WriteTx): Promise<void> {
     if (tx) {
       await storeFromTx(tx, store).clear()
@@ -175,6 +200,6 @@ export function createIndexedDbRepository<N extends BusinessStoreName>(
     await db.clear(store)
   }
 
-  return { list, get, query, put, remove, clear }
+  return { list, get, query, put, remove, purge, clear }
 }
 

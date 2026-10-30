@@ -119,6 +119,17 @@ export interface Repository<N extends BusinessStoreName> extends ReadableReposit
   remove(id: Uuid, now: Now, tx?: WriteTx): Promise<Row<N> | undefined>
 
   /**
+   * 按主键集合物理删除，返回实际删除的条数。
+   *
+   * 物理删除的例外之一，只服务于运动记录超过保留期的清理。不接受查询条件：
+   * 「哪些记录超期」需要日界算术，那属于命令层；存储层只执行删除。
+   *
+   * 空集合是合法输入，返回 0 且不产生任何写入。主键不存在时跳过且不计入条数，
+   * 因此返回值是真正被移除的记录数，而不是入参的长度。
+   */
+  purge(ids: readonly Uuid[], tx?: WriteTx): Promise<number>
+
+  /**
    * 物理清空整张表。
    *
    * 物理删除的例外之一，只服务于「清空全部数据」与导入时的整库替换。

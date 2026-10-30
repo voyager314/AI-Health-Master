@@ -91,7 +91,9 @@ describe('写操作走统一入口', () => {
     const offenders = [...pathsUnder('app/'), ...pathsUnder('features/')].filter((p) => {
       const code = sourceText(p)
       // 只读视图上没有写方法，这里守的是「不通过其他途径拿到它们」
-      return /Repo\.(put|remove|clear)\s*\(|repos\[[^\]]+\]\.(put|remove|clear)\s*\(/.test(code)
+      return /Repo\.(put|remove|purge|clear)\s*\(|repos\[[^\]]+\]\.(put|remove|purge|clear)\s*\(/.test(
+        code,
+      )
     })
 
     expect(offenders).toEqual([])
