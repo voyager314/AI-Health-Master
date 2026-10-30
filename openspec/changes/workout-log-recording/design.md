@@ -58,12 +58,12 @@ stats/timeWindow.ts
 domain/workoutLog.ts
   groupByDay(logs)            -> { day: DayKey, logs: WorkoutLog[] }[]
   daySummary(logs)            -> { count, itemNames }
-  filledMetricCount(log)      -> 0..items.length
+  filledMetricKinds(log)      -> 0..3
 ```
 
 三个域函数的入参是记录数组，不读存储、不取当前时间。`groupByDay` 内部用 `dayKeyOf(log.logged_at, log.tz_offset_minutes)` 归组——按记录自带的偏移判定，用户飞到另一个时区后旧记录仍属于当时那一天。组内按 `logged_at` 倒序，同刻按 `id` 倒序兜底，保证结果确定。
 
-`filledMetricCount` 数的是「至少填了一项指标的卡片数」，与指标填充率的分子口径一致；它不回答「这张记录是否含指标」那个布尔问题——那个由调用方比对 `> 0` 得到。
+`filledMetricKinds` 数的是三项基础指标里有几项在任意一张卡片上填了值，取值 0-3。它不按卡片数增长：同一指标在多张卡片上出现仍只算一项，否则记录写得越长这个值越大，跨记录不可比。它不回答「这条记录是否含指标」那个布尔问题——那个由调用方比对 `> 0` 得到，指标填充率正需要它。
 
 ### D5 四档展开是界面状态，不落库
 

@@ -7,7 +7,7 @@
 
 - [ ] 2.1 `domain/workoutLog.ts` 新增 `groupByDay(logs)`：按记录自带的 `logged_at` 与 `tz_offset_minutes` 归到自然日，组内按时刻倒序、同刻按主键倒序，日序按时间倒序。完成判据：单测覆盖同日多条、跨零点分属两日、跨时区偏移的同日判定、同日同刻的确定性排序
 - [ ] 2.2 `domain/workoutLog.ts` 新增 `daySummary(logs)`：返回当日条数与项目名去重后的摘要素材。完成判据：单测覆盖单条、多条、项目名重复（摘要素材保留去重后顺序）、项目名超长时截断
-- [ ] 2.3 `domain/workoutLog.ts` 新增 `filledMetricCount(log)`：统计「组数 / 次数 / 重量至少填了一项」的卡片数。完成判据：单测覆盖全空、全满、部分填写、空数组；返回值不超过卡片数
+- [ ] 2.3 `domain/workoutLog.ts` 新增 `filledMetricKinds(log)`：统计组数、次数、重量三项中有几项在任意一张卡片上填了值，返回 0-3。完成判据：单测覆盖全空为 0、全满为 3、只填重量为 1；断言 4 张卡片都填重量时仍为 1，不随卡片数增长
 - [ ] 2.4 三个函数不导入 `storage/**`、`commands/**`、`telemetry/**`。完成判据：`npm run lint` 通过；不初始化数据库也能跑完单测
 
 ## 3. 存储能力（约束 5 的第二个物理删除例外）
