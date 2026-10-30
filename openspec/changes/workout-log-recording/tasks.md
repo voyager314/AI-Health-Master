@@ -1,7 +1,7 @@
 ## 1. 时间窗口（约束 6：日界算术只在 timeWindow）
 
-- [ ] 1.1 `stats/timeWindow.ts` 新增 `recentDayInterval(now, tzOffsetMinutes, days)`：返回以 `now` 所在自然日为终点、往前 `days` 个自然日的半开区间。完成判据：单测覆盖 `days = 1 / 30 / 180`、跨月跨年、东八区与西五区；起点是首个自然日的本地零点对应的 UTC 时刻
-- [ ] 1.2 `stats/timeWindow.ts` 新增 `retentionCutoff(now, tzOffsetMinutes, days)`：返回保留期截止的 UTC 时刻，早于它的记录超期。完成判据：单测断言截止时刻恰是「往前第 N 个自然日的本地零点」，且与 `recentDayInterval` 使用同一套边界规则
+- [x] 1.1 `stats/timeWindow.ts` 新增 `recentDayInterval(now, tzOffsetMinutes, days)`：返回以 `now` 所在自然日为终点、往前 `days` 个自然日的半开区间。完成判据：单测覆盖 `days = 1 / 30 / 180`、跨月跨年、东八区与西五区；起点是首个自然日的本地零点对应的 UTC 时刻
+- [x] 1.2 `stats/timeWindow.ts` 新增 `retentionCutoff(now, tzOffsetMinutes, days)`：返回保留期截止的 UTC 时刻，早于它的记录超期。完成判据：单测断言截止时刻恰是「往前第 N 个自然日的本地零点」，且与 `recentDayInterval` 使用同一套边界规则
 
 ## 2. 领域纯函数（约束 12）
 

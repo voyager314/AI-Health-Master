@@ -47,6 +47,34 @@ function pad(value: number): string {
 }
 
 /**
+ * 校验自然日跨度。
+ *
+ * 零与负数没有意义：跨度 0 会得到一个空区间，负数则会让区间倒转，两者都会让
+ * 调用方拿着一个看起来正常、实际什么都取不到的窗口继续往下走。
+ */
+function assertDayCount(days: number): void {
+  if (!Number.isInteger(days) || days < 1) {
+    throw new RangeError(`自然日跨度应为正整数：${days}`)
+  }
+}
+
+/**
+ * 某时刻所在自然日的本地零点，返回对应的 UTC 毫秒数。
+ *
+ * 「本地零点」是按传入偏移算出的挂钟零点，不是运行环境的零点：同一时刻在北京
+ * 与纽约属于不同的自然日，各自零点相差十几个小时。
+ */
+function localDayStartMs(instant: string, tzOffsetMinutes: number): number {
+  const local = toLocalClock(instant, tzOffsetMinutes)
+  const localMidnightMs = Date.UTC(
+    local.getUTCFullYear(),
+    local.getUTCMonth(),
+    local.getUTCDate(),
+  )
+  return localMidnightMs - tzOffsetMinutes * MINUTE_MS
+}
+
+/**
  * 求某个时刻所属的自然日。
  *
  * `instant` 为 UTC ISO 8601 时刻；`tzOffsetMinutes` 为相对 UTC 的分钟偏移，
@@ -58,6 +86,50 @@ function pad(value: number): string {
 export function dayKeyOf(instant: string, tzOffsetMinutes: number): DayKey {
   const local = toLocalClock(instant, tzOffsetMinutes)
   return `${local.getUTCFullYear()}-${pad(local.getUTCMonth() + 1)}-${pad(local.getUTCDate())}`
+}
+
+/**
+ * 以某时刻所在的自然日为终点，往前数若干自然日，返回这段窗口的 UTC 区间。
+ *
+ * `days` 为窗口包含的自然日数量，正整数：`days = 1` 就是 `now` 所在那一天，
+ * `days = 30` 是含今天在内的 30 个自然日。起点是窗口首日的本地零点，终点是
+ * `now` 所在日次日零点（不含），因此窗口始终覆盖完整的天，不随 `now` 的时刻
+ * 在一天里的位置变化。
+ *
+ * 偏移在整段窗口内按常量处理，行为与 `weekInterval` 一致：记录携带的是写入
+ * 当时的偏移快照，跨夏令时切换的那段窗口因此按 `days × 24` 小时计算。
+ */
+export function recentDayInterval(
+  now: string,
+  tzOffsetMinutes: number,
+  days: number,
+): Interval {
+  assertDayCount(days)
+  const todayStartMs = localDayStartMs(now, tzOffsetMinutes)
+  const fromMs = todayStartMs - (days - 1) * DAY_MS
+
+  return {
+    from: new Date(fromMs).toISOString(),
+    to: new Date(todayStartMs + DAY_MS).toISOString(),
+  }
+}
+
+/**
+ * 保留期的截止时刻：早于它的记录已经超出保留期。
+ *
+ * 与 `recentDayInterval` 共用同一套日界规则——取的就是同一段窗口的起点，因此
+ * 「保留期」与「可查阅的最长窗口」是同一段时间：留在库里的记录一定查得到，
+ * 查得到的记录一定还在库里。
+ *
+ * 返回的是区间起点而不是末刻，与 `Interval` 的半开语义一致：截止时刻当天的
+ * 记录仍然保留。
+ */
+export function retentionCutoff(
+  now: string,
+  tzOffsetMinutes: number,
+  days: number,
+): string {
+  return recentDayInterval(now, tzOffsetMinutes, days).from
 }
 
 /**

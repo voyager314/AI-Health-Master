@@ -8,5 +8,12 @@
  * 这样它既能脱离数据库单测，将来也能被等价的 SQL 聚合替换并做双实现对照。
  */
 
-export { dayKeyOf, isSameWeek, weekInterval, weekKeyOf } from './timeWindow.ts'
+export {
+  dayKeyOf,
+  isSameWeek,
+  recentDayInterval,
+  retentionCutoff,
+  weekInterval,
+  weekKeyOf,
+} from './timeWindow.ts'
 export type { DayKey, Interval } from './timeWindow.ts'
