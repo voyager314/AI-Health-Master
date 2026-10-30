@@ -52,9 +52,9 @@ describe('路由', () => {
   })
 
   it('未实现的页面展示占位说明而不是 404', () => {
-    renderAt('/workout')
+    renderAt('/meal')
 
-    expect(screen.getByRole('heading', { name: '运动记录' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: '饮食记录' })).toBeTruthy()
     expect(screen.getByText('这个功能还没有上线。')).toBeTruthy()
   })
 

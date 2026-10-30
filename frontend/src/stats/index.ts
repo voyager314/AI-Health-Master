@@ -9,6 +9,7 @@
  */
 
 export {
+  clockTimeOf,
   dayKeyOf,
   isSameWeek,
   recentDayInterval,

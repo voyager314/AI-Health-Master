@@ -226,10 +226,118 @@ body {
   color: var(--fg-muted);
 }
 
+/* 整行可点的清单项：与链接同样尺寸，但它是按钮而不是导航 */
+.list__row--action {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.list__row--action:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.list__time {
+  flex: none;
+  margin-right: 0.75rem;
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+
 .stack {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+}
+
+/* ── 卡片编辑 ───────────────────────────────────────────────────────────── */
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--surface);
+}
+
+.card__legend {
+  padding: 0 0.25rem;
+  font-size: 0.85rem;
+  color: var(--fg-muted);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.field__label {
+  font-size: 0.85rem;
+  color: var(--fg-muted);
+}
+
+.field__input {
+  min-height: var(--tap-target-min);
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  /* 16px 是 iOS 不自动放大页面的下限，小于它聚焦输入框时整页会跳一下 */
+  font-size: 1rem;
+}
+
+.field__input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.field__error {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--danger);
+}
+
+/* 三项数值并排：训练间隙单手输入，少滚一次屏少一次中断 */
+.field-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+}
+
+/* ── 只读元信息 ─────────────────────────────────────────────────────────── */
+
+.meta {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.meta__item {
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--surface);
+}
+
+.meta__item dt {
+  font-size: 0.85rem;
+  color: var(--fg-muted);
+}
+
+.meta__item dd {
+  margin: 0.25rem 0 0;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ── 统计 ───────────────────────────────────────────────────────────────── */

@@ -63,3 +63,8 @@ export {
   UnknownCommandError,
 } from './types.ts'
 export type { CommandContext, CommandDefinition } from './types.ts'
+
+// 写入失败的类型与原因分类转出给界面：调用方要按 reason 决定提示什么、给不给重试，
+// 这不需要看见存储实现本身。
+export { StorageWriteError } from '@/storage/internal'
+export type { WriteFailureReason } from '@/storage/internal'

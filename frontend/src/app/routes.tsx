@@ -10,6 +10,7 @@
 import type { ReactElement } from 'react'
 
 import { PlaceholderPage } from '@/features/placeholder'
+import { WorkoutEditorPage, WorkoutListPage } from '@/features/workout'
 
 import { DataPage } from './DataPage.tsx'
 import { HomePage } from './HomePage.tsx'
@@ -36,7 +37,9 @@ export const navItems: readonly NavItem[] = [
 
 export const routeElements: readonly RouteEntry[] = [
   { path: '/', element: <HomePage /> },
-  { path: '/workout', element: <PlaceholderPage title="运动记录" /> },
+  { path: '/workout', element: <WorkoutListPage /> },
+  { path: '/workout/new', element: <WorkoutEditorPage /> },
+  { path: '/workout/:id', element: <WorkoutEditorPage /> },
   { path: '/weight', element: <PlaceholderPage title="体重趋势" /> },
   { path: '/meal', element: <PlaceholderPage title="饮食记录" /> },
   { path: '/settings', element: <SettingsPage /> },

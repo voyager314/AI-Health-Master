@@ -133,6 +133,17 @@ export function retentionCutoff(
 }
 
 /**
+ * 某时刻在指定偏移下的本地挂钟时间，形如 `20:14`。
+ *
+ * 与 `dayKeyOf` 同源：把记录换算回它写入时的本地时刻来展示。挂在同一个模块里
+ * 是因为它同样依赖「本地挂钟」这一换算，另写一份就会在跨时区时与分组结果对不上。
+ */
+export function clockTimeOf(instant: string, tzOffsetMinutes: number): string {
+  const local = toLocalClock(instant, tzOffsetMinutes)
+  return `${pad(local.getUTCHours())}:${pad(local.getUTCMinutes())}`
+}
+
+/**
  * 求某个时刻所属的自然周，返回该周的 UTC 时刻区间。
  *
  * 自然周为周一至周日：起点是该时刻之前最近一个周一的本地零点，终点是下一个

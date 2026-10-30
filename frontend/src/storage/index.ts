@@ -40,3 +40,8 @@ export type { BlobReader, BlobResolution } from './indexeddb/blob.ts'
 export { LATEST_SCHEMA_VERSION } from './indexeddb/migrations/index.ts'
 export { snapshotDatabase } from './indexeddb/dump.ts'
 export type { DatabaseSnapshot } from './indexeddb/dump.ts'
+
+// 取当前时刻与时区偏移：不写任何数据，只是把「现在」换算成契约里的时刻格式。
+// 转出这一处是为了让符号约定只有一份实现，界面另写一遍就会在上面说的那个符号上出错。
+export { createNow } from './indexeddb/write.ts'
+export type { Now } from './indexeddb/write.ts'
