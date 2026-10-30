@@ -19,6 +19,7 @@ import { ConsentGate } from './ConsentGate.tsx'
 import { Disclaimer } from './Disclaimer.tsx'
 import { NotFoundPage } from './NotFoundPage.tsx'
 import { routeElements } from './routes.tsx'
+import { StartupMaintenance } from './StartupMaintenance.tsx'
 import { UpdatePrompt } from './UpdatePrompt.tsx'
 
 export function AppShell() {
@@ -29,15 +30,18 @@ export function AppShell() {
       <div className="app-shell">
         <ConsentGate>
           <AppOpenTracker />
-          <div className="app-shell__content">
-            <Routes>
-              {routeElements.map(({ path, element }) => (
-                <Route key={path} path={path} element={element} />
-              ))}
-              <Route path="*" element={<NotFoundPage />} />
-            </Routes>
-            <Disclaimer />
-          </div>
+          {/* 维护在业务页面之前：先清掉超期记录，用户就不会先看到它们再看着它们消失 */}
+          <StartupMaintenance>
+            <div className="app-shell__content">
+              <Routes>
+                {routeElements.map(({ path, element }) => (
+                  <Route key={path} path={path} element={element} />
+                ))}
+                <Route path="*" element={<NotFoundPage />} />
+              </Routes>
+              <Disclaimer />
+            </div>
+          </StartupMaintenance>
           <BottomNav />
         </ConsentGate>
       </div>

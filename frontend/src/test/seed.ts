@@ -7,7 +7,8 @@
  * 放在测试层：业务层与界面层的代码都不允许够到存储实现，测试的准备工作集中在此，
  * 那条边界才不必为测试开口子。
  */
-import { closeDatabase } from '@/storage/indexeddb/db.ts'
+import type { PendingOp } from '@/entities'
+import { closeDatabase, openDatabase } from '@/storage/indexeddb/db.ts'
 import { createRepositories } from '@/storage/repositories/index.ts'
 import type { RepositorySet } from '@/storage/repositories/types.ts'
 
@@ -32,6 +33,17 @@ export async function seedDefaultDatabase(): Promise<void> {
 
   await repos.body_metric.put(makeRecord('body_metric', aBodyMetric(), now))
   await repos.workout_log.put(makeRecord('workout_log', aWorkoutLog(), now))
+}
+
+/**
+ * 读默认数据库的写操作日志。
+ *
+ * 界面层的测试需要断言「这次操作经命令层落地了」，而 pending_ops 不在只读视图里；
+ * 读它也属于「准备与观察测试前置状态」，因此和灌数据一样收在测试层。
+ */
+export async function readDefaultPendingOps(): Promise<readonly PendingOp[]> {
+  const db = await openDatabase()
+  return db.getAll('pending_ops')
 }
 
 /** 清空默认数据库并释放连接，供用例之间互不干扰 */
