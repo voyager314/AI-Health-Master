@@ -54,7 +54,7 @@ describe('路由', () => {
   it('未实现的页面展示占位说明而不是 404', () => {
     renderAt('/workout')
 
-    expect(screen.getByRole('heading', { name: '训练记录' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: '运动记录' })).toBeTruthy()
     expect(screen.getByText('这个功能还没有上线。')).toBeTruthy()
   })
 
@@ -150,7 +150,7 @@ describe('首页状态', () => {
     renderAt('/')
 
     expect(await screen.findByText(/还没有任何记录/)).toBeTruthy()
-    expect(screen.getByRole('button', { name: '开始第一次训练' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '记录今天的运动' })).toBeTruthy()
     expect(document.querySelector('.stats')).toBeNull()
   })
 
@@ -159,7 +159,7 @@ describe('首页状态', () => {
 
     renderAt('/')
 
-    expect(await screen.findByText('训练记录')).toBeTruthy()
+    expect(await screen.findByText('运动记录')).toBeTruthy()
     expect(screen.getByText('1 次')).toBeTruthy()
     expect(screen.getByText('1 条')).toBeTruthy()
     expect(screen.queryByText(/还没有任何记录/)).toBeNull()

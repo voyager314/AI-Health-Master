@@ -26,7 +26,7 @@ function stripComments(text: string): string {
   return text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
 }
 
-describe('约束 1（一票否决）：存储访问收敛', () => {
+describe('存储访问收敛', () => {
   it('只有数据库实现目录可以直接使用 IndexedDB API', () => {
     const offenders = pathsUnder('')
       .filter((p) => !p.startsWith('storage/indexeddb/'))
@@ -57,7 +57,7 @@ describe('约束 1（一票否决）：存储访问收敛', () => {
   })
 })
 
-describe('约束 3（一票否决）：user_id 由存储层注入', () => {
+describe('user_id 由存储层注入', () => {
   it('用户标识字面量只出现在存储实现里', () => {
     const offenders = pathsUnder('')
       .filter((p) => !p.startsWith('storage/'))
@@ -78,7 +78,7 @@ describe('约束 3（一票否决）：user_id 由存储层注入', () => {
   })
 })
 
-describe('约束 9（一票否决）：写操作走统一入口', () => {
+describe('写操作走统一入口', () => {
   it('含写方法的内部入口只被命令层导入', () => {
     const offenders = pathsUnder('')
       .filter((p) => !p.startsWith('commands/'))
@@ -98,8 +98,8 @@ describe('约束 9（一票否决）：写操作走统一入口', () => {
   })
 })
 
-describe('约束 2/6/12：可在源码层验证的部分', () => {
-  it('约束 2：不出现返回 v4 的主键生成调用', () => {
+describe('可在源码层验证的部分', () => {
+  it('不出现返回 v4 的主键生成调用', () => {
     // 断言的是调用而不是名字：报错文案里点出 v4 生成器属于解释规则，不生成主键
     const offenders = pathsUnder('').filter((p) =>
       /\bcrypto\.randomUUID\s*\(/.test(stripComments(sourceText(p))),
@@ -108,7 +108,7 @@ describe('约束 2/6/12：可在源码层验证的部分', () => {
     expect(offenders).toEqual([])
   })
 
-  it('约束 6：日界与周界算术只在一个文件里', () => {
+  it('日界与周界算术只在一个文件里', () => {
     const arithmetic = [/getUTCDay\s*\(/, /\bgetDay\s*\(/, /86_?400_?000/]
     // 测试拿同一批常量做期望值是断言而非第二份实现，因此只看生产代码
     const offenders = pathsUnder('')
@@ -118,7 +118,7 @@ describe('约束 2/6/12：可在源码层验证的部分', () => {
     expect(offenders).toEqual([])
   })
 
-  it('约束 12：领域与统计层不导入存储、命令与埋点', () => {
+  it('领域与统计层不导入存储、命令与埋点', () => {
     const offenders = [...pathsUnder('domain/'), ...pathsUnder('stats/')].filter((p) =>
       /from\s+['"][^'"]*(@\/storage|@\/commands|@\/telemetry|storage\/|idb['"])/.test(
         sourceText(p),
@@ -129,7 +129,7 @@ describe('约束 2/6/12：可在源码层验证的部分', () => {
   })
 })
 
-describe('约束 7：图片只存引用', () => {
+describe('图片只存引用', () => {
   it('业务实体中没有二进制字段', () => {
     const offenders = pathsUnder('entities/').filter((p) =>
       /:\s*Blob\b|:\s*ArrayBuffer\b|base64/i.test(sourceText(p)),

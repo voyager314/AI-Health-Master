@@ -9,7 +9,7 @@ import type {
   BodyMetric,
   BusinessRecordMap,
   BusinessStoreName,
-  Exercise,
+  WorkoutLog,
 } from '@/entities'
 import {
   createNow,
@@ -17,14 +17,14 @@ import {
   type CreateInput,
   type Now,
 } from '@/storage/indexeddb/write.ts'
-import { aBodyMetric, anExercise, fixedDate } from './fixtures.ts'
+import { aBodyMetric, aWorkoutLog, fixedDate } from './fixtures.ts'
 
 const AT = '2026-10-29T02:00:00.000Z'
 
-/** 一条合法的动作记录，时刻固定，便于断言 */
-export const sampleExercise: Exercise = withAuditForCreate(
-  'exercise',
-  anExercise(),
+/** 一条合法的运动记录，时刻固定，便于断言 */
+export const sampleWorkoutLog: WorkoutLog = withAuditForCreate(
+  'workout_log',
+  aWorkoutLog(),
   createNow(() => fixedDate(AT, 480)),
 )
 

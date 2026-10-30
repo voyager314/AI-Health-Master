@@ -90,7 +90,7 @@ describe('三态解析', () => {
 })
 
 describe('业务记录只持有引用', () => {
-  it('9 张业务表没有任何字段存放二进制', () => {
+  it('6 张业务表没有任何字段存放二进制', () => {
     const offenders: string[] = []
 
     for (const store of BUSINESS_STORE_NAMES) {

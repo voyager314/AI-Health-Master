@@ -8,9 +8,9 @@ import { defineConfig, globalIgnores } from 'eslint/config'
 /*
  * 分层边界的机器化强制。
  *
- * 规则来源：openspec/changes/local-data-foundation/design.md「目录结构与分层边界」。
- * 目的是让违反 PRD §10.5 可迁移性约束的代码在 `npm run lint` 就失败，而不是靠人记得。
- * 其中约束 1 / 3 / 9 是硬性一票否决项。
+ * 目的是让越层的代码在 `npm run lint` 就失败，而不是靠人记得：页面直接够到数据库、
+ * 应用层绕过命令层写库、领域层导入存储——这三类违规一旦混进代码，将来换存储实现时
+ * 只会变成静默的例外，不会被替换掉。
  *
  * 注意 ESLint flat config 的语义：同名规则在后面的配置块里会**替换**而非合并前面的。
  * 所以每个文件集必须只被一个 no-restricted-imports 块匹配，且该块列出它的完整禁止清单。
@@ -43,23 +43,23 @@ const UI_LAYERS = [...layer('app'), ...layer('features'), ...layer('shared')]
 
 const MSG = {
   dbImpl:
-    '约束 1：数据库实现只允许被 storage/** 内部导入。读数据用 @/storage（只读视图），写数据用 @/commands。',
+    '数据库实现只允许被 storage/** 内部导入。读数据用 @/storage（只读视图），写数据用 @/commands。',
   internal:
-    '约束 9：storage/internal 含写方法，只允许 commands/** 导入。应用层写数据必须经 applyCommand。',
+    'storage/internal 含写方法，只允许 commands/** 导入。应用层写数据必须经 applyCommand。',
   telemetryEntry:
-    'design.md D13：storage/telemetry 是埋点的专用窄入口，只允许 telemetry/** 导入。',
+    'storage/telemetry 是埋点的专用窄入口，只允许 telemetry/** 导入。',
   pure:
-    '约束 12：domain/ 与 stats/ 必须是纯函数——入参为实体数组，不读存储、不触发副作用。',
+    'domain/ 与 stats/ 必须是纯函数——入参为实体数组，不读存储、不触发副作用。',
   entities:
-    '约束 12：entities/ 是零依赖的类型层。它被所有层导入，自己不能导入任何层，否则会形成环。',
+    'entities/ 是零依赖的类型层。它被所有层导入，自己不能导入任何层，否则会形成环。',
   noReachUp: '分层方向：下层不得反向导入上层。',
 }
 
-/** 约束 2：主键必须是 UUID v7，crypto.randomUUID 返回的是 v4 */
+/** 主键必须是 UUID v7：crypto.randomUUID 返回的是 v4，纯随机、不时间有序 */
 const RESTRICT_RANDOM_UUID = {
   selector: "MemberExpression[object.name='crypto'][property.name='randomUUID']",
   message:
-    '约束 2：crypto.randomUUID() 返回 UUID v4（纯随机）。主键必须用 uuid 包的 v7()，否则上云后索引会随机分裂。',
+    'crypto.randomUUID() 返回 UUID v4（纯随机）。主键必须用 uuid 包的 v7()，否则上云后索引会随机分裂。',
 }
 
 export default defineConfig([
@@ -78,7 +78,7 @@ export default defineConfig([
     },
   },
 
-  // ── 约束 2：禁用 crypto.randomUUID（返回 v4，不满足「时间有序」）─────────────
+  // ── 禁用 crypto.randomUUID（返回 v4，不满足「时间有序」）──────────────────────
   //
   // 下面两块按「是否在 storage/indexeddb/** 内」切开：flat config 里同名规则会
   // 替换而非合并，所以数据库实现目录那块要把 crypto 规则重复一遍。
@@ -89,7 +89,7 @@ export default defineConfig([
     },
   },
 
-  // ── 约束 1：IndexedDB 只允许在 storage/indexeddb/** 内触碰 ────────────────
+  // ── IndexedDB 只允许在 storage/indexeddb/** 内触碰 ────────────────────────
   {
     files: ['src/**/*.{ts,tsx}'],
     ignores: ['src/storage/indexeddb/**'],
@@ -100,15 +100,15 @@ export default defineConfig([
         {
           name: 'indexedDB',
           message:
-            '约束 1：IndexedDB API 只允许在 storage/indexeddb/** 内使用。其余各层经 Repository 访问存储。',
+            'IndexedDB API 只允许在 storage/indexeddb/** 内使用。其余各层经 Repository 访问存储。',
         },
         {
           name: 'IDBKeyRange',
-          message: '约束 1：IndexedDB API 只允许在 storage/indexeddb/** 内使用。',
+          message: 'IndexedDB API 只允许在 storage/indexeddb/** 内使用。',
         },
         {
           name: 'IDBFactory',
-          message: '约束 1：IndexedDB API 只允许在 storage/indexeddb/** 内使用。',
+          message: 'IndexedDB API 只允许在 storage/indexeddb/** 内使用。',
         },
       ],
       // no-restricted-globals 只认裸标识符，`globalThis.indexedDB` / `window.indexedDB`
@@ -118,7 +118,7 @@ export default defineConfig([
         RESTRICT_RANDOM_UUID,
         ...['globalThis', 'window', 'self'].map((root) => ({
           selector: `MemberExpression[object.name='${root}'][property.name='indexedDB']`,
-          message: `约束 1：${root}.indexedDB 同样只允许在 storage/indexeddb/** 内使用，不要用它绕过边界检查。`,
+          message: `${root}.indexedDB 同样只允许在 storage/indexeddb/** 内使用，不要用它绕过边界检查。`,
         })),
       ],
     },

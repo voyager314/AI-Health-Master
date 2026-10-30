@@ -9,7 +9,7 @@ import { COMMANDS } from '@/commands/index.ts'
 import { ALL_STORE_NAMES } from '@/entities'
 import { StorageWriteError, createNow, withAuditForCreate } from '@/storage/internal'
 import { createTestDb, type TestDb } from '@/test/db.ts'
-import { aBodyMetric, anExercise, fixedDate } from '@/test/fixtures.ts'
+import { aBodyMetric, aWorkoutLog, fixedDate } from '@/test/fixtures.ts'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 let testDb: TestDb
@@ -32,22 +32,26 @@ function bus() {
 }
 
 async function seed() {
-  const exercise = withAuditForCreate('exercise', anExercise({ name: '旧动作' }), now)
+  const log = withAuditForCreate('workout_log', aWorkoutLog({ input_source: 'voice' }), now)
   const weight = withAuditForCreate('body_metric', aBodyMetric({ weight_kg: 70 }), now)
-  await testDb.repos.exercise.put(exercise)
+  await testDb.repos.workout_log.put(log)
   await testDb.repos.body_metric.put(weight)
-  return { exercise, weight }
+  return { log, weight }
 }
 
 describe('导入', () => {
   it('用文件内容替换全库', async () => {
     await seed()
 
-    const incoming = withAuditForCreate('exercise', anExercise({ name: '新动作' }), now)
-    await bus().apply('data/import', { records: { exercise: [incoming] } })
+    const incoming = withAuditForCreate(
+      'workout_log',
+      aWorkoutLog({ input_source: 'voice' }),
+      now,
+    )
+    await bus().apply('data/import', { records: { workout_log: [incoming] } })
 
-    const exercises = await testDb.repos.exercise.list()
-    expect(exercises.map((e) => e.name)).toEqual(['新动作'])
+    const logs = await testDb.repos.workout_log.list()
+    expect(logs.map((log) => log.input_source)).toEqual(['voice'])
     // 文件里没有的表被清空
     expect(await testDb.repos.body_metric.list()).toEqual([])
   })
@@ -68,17 +72,17 @@ describe('导入', () => {
   it('中途有记录不合规时整体回滚，原数据完好', async () => {
     const original = await seed()
 
-    const good = withAuditForCreate('exercise', anExercise({ name: '合法' }), now)
-    const bad = { ...good, weight_kg: 'totally-wrong', id: 'not-a-uuid' }
+    const good = withAuditForCreate('workout_log', aWorkoutLog(), now)
+    const bad = { ...good, logged_at: 'not-a-time', id: 'not-a-uuid' }
 
     await expect(
       // 绕开解析层的校验，直接喂进命令，验证写入层自己的兜底
-      bus().apply('data/import', { records: { exercise: [good, bad] } }),
+      bus().apply('data/import', { records: { workout_log: [good, bad] } }),
     ).rejects.toThrow(StorageWriteError)
 
-    const exercises = await testDb.repos.exercise.list()
-    expect(exercises.map((e) => e.name)).toEqual(['旧动作'])
-    expect(exercises[0]?.id).toBe(original.exercise.id)
+    const logs = await testDb.repos.workout_log.list()
+    expect(logs).toHaveLength(1)
+    expect(logs[0]?.id).toBe(original.log.id)
     expect(await testDb.repos.body_metric.list()).toHaveLength(1)
   })
 
@@ -86,10 +90,10 @@ describe('导入', () => {
     await seed()
 
     await expect(
-      bus().apply('data/import', { records: { exercise: 'not-an-array' } }),
+      bus().apply('data/import', { records: { workout_log: 'not-an-array' } }),
     ).rejects.toThrow(StorageWriteError)
 
-    expect(await testDb.repos.exercise.list()).toHaveLength(1)
+    expect(await testDb.repos.workout_log.list()).toHaveLength(1)
   })
 
   it('缺少记录集合时拒绝执行', async () => {
@@ -97,12 +101,12 @@ describe('导入', () => {
 
     await expect(bus().apply('data/import', {})).rejects.toThrow(/records/)
 
-    expect(await testDb.repos.exercise.list()).toHaveLength(1)
+    expect(await testDb.repos.workout_log.list()).toHaveLength(1)
   })
 })
 
 describe('清空', () => {
-  it('清空全部 12 张表', async () => {
+  it('清空全部 9 张表', async () => {
     await seed()
     await testDb.repos.app_meta.put(
       withAuditForCreate(

@@ -1,48 +1,16 @@
 /**
- * 12 个 store 的记录类型与枚举取值。
+ * 9 个 store 的记录类型与枚举取值。
  *
- * 9 张业务表（带 AuditFields）+ 3 个非业务 store（pending_ops / blob / analytics_event）。
+ * 6 张业务表（带 AuditFields）+ 3 个非业务 store（pending_ops / blob / analytics_event）。
  * 审计字段的契约定义在 common.ts 的 `AuditFields`。
  */
 import type { AuditFields, IsoUtc, StorageRef, UserId, Uuid } from './common.ts'
 
 // ── 枚举取值 ────────────────────────────────────────────────────────────────
 
-/**
- * 动作模式，共 9 类。
- *
- * 只砍掉负重行走，保留孤立动作：增肌主用户群离不开弯举/侧平举/飞鸟/臂屈伸，
- * 语音录入「飞鸟20公斤12个3组」这类句子正是要靠孤立类别才能归类。
- */
-export const EXERCISE_PATTERNS = [
-  'horizontal_push',
-  'vertical_push',
-  'horizontal_pull',
-  'vertical_pull',
-  'squat',
-  'hip_hinge',
-  'single_leg',
-  'core',
-  'isolation',
-] as const
-export type ExercisePattern = (typeof EXERCISE_PATTERNS)[number]
-
-/** 计量方式：负重类按重量×次数，计时类按秒。两种计量各有自己的字段，不复用重量字段表达时长 */
-export const METRIC_TYPES = ['weight', 'timed'] as const
-export type MetricType = (typeof METRIC_TYPES)[number]
-
-/** 组记录的录入来源，用于统计语音记录占比 */
+/** 运动记录的录入来源，用于统计语音记录占比 */
 export const INPUT_SOURCES = ['manual', 'voice'] as const
 export type InputSource = (typeof INPUT_SOURCES)[number]
-
-/**
- * 训练单的持久化状态。
- *
- * 训练单在界面上有「未开始、进行中、已保存、已删除」四态，但只有 2 态需要落库：
- * 「未开始」时还没有记录，「已删除」由 `deleted_at` 表达，记录本身仍保留。
- */
-export const WORKOUT_STATUSES = ['in_progress', 'saved'] as const
-export type WorkoutStatus = (typeof WORKOUT_STATUSES)[number]
 
 /** 估算值的置信度。营养数值本质是估算，界面必须据此标注，不能当作精确值展示 */
 export const CONFIDENCE_LEVELS = ['high', 'medium', 'low'] as const
@@ -52,48 +20,41 @@ export type ConfidenceLevel = (typeof CONFIDENCE_LEVELS)[number]
 export const MEAL_ITEM_SOURCES = ['ai', 'manual', 'edit'] as const
 export type MealItemSource = (typeof MEAL_ITEM_SOURCES)[number]
 
-// ── 9 张业务表 ──────────────────────────────────────────────────────────────
+// ── 6 张业务表 ──────────────────────────────────────────────────────────────
 
-export interface Exercise extends AuditFields {
+/**
+ * 运动记录里的一张项目卡片。
+ *
+ * 嵌套在记录内的值，不是实体：没有主键、不被其他记录引用、随记录整体读写。
+ * 顺序即它在 `WorkoutLog.items` 数组里的下标，因此不存在第二个表达顺序的字段。
+ *
+ * 三项指标同时为 `null` 是合法状态，表示用户只记得项目名。
+ */
+export interface WorkoutItem {
+  /** 项目名。必填，不超过 40 字，自由文本，无预设动作库，不做别名归并；同一条记录内允许重复 */
   name: string
-  pattern: ExercisePattern
-  primary_muscle: string
-  metric_type: MetricType
-  /** 用户自建动作。自建占比超过 20% 说明内置动作库未覆盖常用动作，应优先扩充内置库 */
-  is_custom: boolean
-}
-
-export interface Workout extends AuditFields {
-  started_at: IsoUtc
-  /** 训练结束时刻，进行中为 `null` */
-  ended_at: IsoUtc | null
-  template_id: Uuid | null
-  note: string | null
-  status: WorkoutStatus
-}
-
-export interface WorkoutExercise extends AuditFields {
-  workout_id: Uuid
-  exercise_id: Uuid
-  /** 动作在训练单中的顺序，从 0 起 */
-  order_index: number
-}
-
-export interface SetEntry extends AuditFields {
-  workout_exercise_id: Uuid
-  /** 负重类必填、计时类为 `null`。支持 0.5 步进 */
-  weight_kg: number | null
-  /** 负重类必填、计时类为 `null` */
+  /** 组数，正整数。`null` 表示未填 */
+  sets: number | null
+  /** 每组次数，正整数。`null` 表示未填 */
   reps: number | null
-  /** 计时类必填、负重类为 `null`。时长不复用重量字段表达 */
-  duration_sec: number | null
-  /** 主观用力程度 1-10，可选 */
-  rpe: number | null
-  /** 热身组不计入训练容量（术语表：tonnage 仅统计非热身组） */
-  is_warmup: boolean
+  /** 重量，单位 kg，0.5 步进，不小于 0。`null` 表示未填 */
+  weight_kg: number | null
+  /** 该项目自己的描述，不超过 200 字。`null` 表示未填 */
+  note: string | null
+}
+
+/**
+ * 一次提交产生的一条运动记录。
+ *
+ * 同一天允许多条（早练、晚练各算一次），每条带自己的时刻。
+ */
+export interface WorkoutLog extends AuditFields {
+  /** 记录产生时的设备本地时刻，精确到秒，由程序写入，用户不可编辑。按 UTC 存储，时区另见 tz_offset_minutes */
+  logged_at: IsoUtc
+  /** 这条记录来自手动填写还是语音提交 */
   input_source: InputSource
-  /** 语音录入时模型对本组的置信度，手动录入为 `null` */
-  confidence: ConfidenceLevel | null
+  /** 项目卡片，至少 1 张，顺序即用户添加的顺序 */
+  items: WorkoutItem[]
 }
 
 export interface BodyMetric extends AuditFields {
@@ -172,7 +133,7 @@ export interface PendingOp {
 /**
  * 图片二进制。
  *
- * 这是全项目唯一允许物理删除的 store：图片是大二进制，软删除不释放配额，
+ * 这是允许物理删除的 store 之一：图片是大二进制，软删除不释放配额，
  * 留下一个指向已删图片的引用反而制造出需要三态解析才能处理的悬空引用。
  */
 export interface BlobRecord {
@@ -199,16 +160,13 @@ export interface AnalyticsEvent {
 // ── store 名称 ──────────────────────────────────────────────────────────────
 
 /**
- * 9 张业务表。
+ * 6 张业务表。
  *
- * 「每条记录都带 user_id 与 version」这条契约的口径就是这 9 张，不含下面
+ * 「每条记录都带 user_id 与 version」这条契约的口径就是这 6 张，不含下面
  * 3 个非业务 store——它们不持有审计字段，也就不参与用户隔离与版本控制。
  */
 export const BUSINESS_STORE_NAMES = [
-  'exercise',
-  'workout',
-  'workout_exercise',
-  'set_entry',
+  'workout_log',
   'body_metric',
   'meal',
   'meal_item',
@@ -225,12 +183,12 @@ export const ALL_STORE_NAMES = [...BUSINESS_STORE_NAMES, ...INTERNAL_STORE_NAMES
 export type StoreName = BusinessStoreName | InternalStoreName
 
 /**
- * 进入导出文件的表：9 张业务表加埋点事件。
+ * 进入导出文件的表：6 张业务表加埋点事件。
  *
  * 写操作日志与图片二进制不在其中。前者是操作历史，重放它会把已经发生的写入再做
  * 一遍；后者是二进制，混进纯数据文件会让文件大到无法传输。
  *
- * 导入只接受这 10 张表——文件里出现别的表名说明文件被改过或来自不兼容的版本，
+ * 导入只接受这 7 张表——文件里出现别的表名说明文件被改过或来自不兼容的版本，
  * 与其猜测意图，不如拒绝。
  */
 export const EXPORTED_STORE_NAMES = [
@@ -241,10 +199,7 @@ export type ExportedStoreName = (typeof EXPORTED_STORE_NAMES)[number]
 
 /** store 名 → 记录类型的映射，供 Repository 做类型推导 */
 export interface BusinessRecordMap {
-  exercise: Exercise
-  workout: Workout
-  workout_exercise: WorkoutExercise
-  set_entry: SetEntry
+  workout_log: WorkoutLog
   body_metric: BodyMetric
   meal: Meal
   meal_item: MealItem
@@ -252,5 +207,5 @@ export interface BusinessRecordMap {
   app_meta: AppMeta
 }
 
-/** 9 张业务表记录的联合类型 */
+/** 6 张业务表记录的联合类型 */
 export type BusinessRecord = BusinessRecordMap[BusinessStoreName]

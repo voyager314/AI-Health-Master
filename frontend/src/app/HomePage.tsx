@@ -1,8 +1,8 @@
 /**
  * 今日总览。
  *
- * 当前只显示本地记录的概况，够用来确认「数据还在」。训练状态、体重周均与蛋白进度
- * 随各自功能接入后逐个填进来。
+ * 当前只显示本地记录的概况，够用来确认「数据还在」。运动记录列表、体重周均与蛋白
+ * 进度随各自功能接入后逐个填进来。
  *
  * 三种状态必须分开呈现：读取中给占位、没有数据给一句话加一个主行动、有数据才画内容。
  * 把「还没有」画成空图表是最容易犯的错——用户看到的是坏了，而不是还没开始。
@@ -11,7 +11,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 
 import { EmptyState, Skeleton } from '@/shared'
-import { bodyMetricRepo, workoutRepo } from '@/storage'
+import { bodyMetricRepo, workoutLogRepo } from '@/storage'
 
 interface Overview {
   readonly workouts: number
@@ -26,7 +26,7 @@ export function HomePage() {
 
   const read = useCallback(async () => {
     const [workouts, weights] = await Promise.all([
-      workoutRepo.list({ includeDeleted: false }),
+      workoutLogRepo.list({ includeDeleted: false }),
       bodyMetricRepo.list({ includeDeleted: false }),
     ])
     return { workouts: workouts.length, weights: weights.length }
@@ -61,8 +61,8 @@ export function HomePage() {
 
       {load.status === 'ready' && load.data.workouts === 0 && load.data.weights === 0 ? (
         <EmptyState
-          message="还没有任何记录。第一次训练从记下一个动作开始。"
-          actionLabel="开始第一次训练"
+          message="还没有任何记录。练完说一句话或填一张卡片，就能记下今天的运动。"
+          actionLabel="记录今天的运动"
           onAction={() => navigate('/workout')}
         />
       ) : null}
@@ -70,7 +70,7 @@ export function HomePage() {
       {load.status === 'ready' && (load.data.workouts > 0 || load.data.weights > 0) ? (
         <dl className="stats">
           <div className="stats__item">
-            <dt>训练记录</dt>
+            <dt>运动记录</dt>
             <dd>{load.data.workouts} 次</dd>
           </div>
           <div className="stats__item">

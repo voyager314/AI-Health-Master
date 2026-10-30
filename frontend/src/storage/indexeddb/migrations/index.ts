@@ -7,6 +7,9 @@
  * 全新安装与旧库升级走**同一条链**：IndexedDB 对不存在的库给出 `oldVersion === 0`，
  * 于是从头跑全部迁移。这避免了「建表代码」与「迁移代码」产出不同 schema 的经典问题
  * ——那种 bug 只在老用户升级时才暴露，而开发者本地永远是全新安装。
+ *
+ * 版本 1 的内容随表清单变化，因为该版本尚未对外发布。版本号一经随正式版本发布即
+ * 冻结：此后的结构调整一律新增一个版本，改旧的迁移只会让已升级的库停在旧结构上。
  */
 import { STORES } from '../schema.ts'
 
@@ -62,7 +65,7 @@ export function validateMigrationChain(
   if (migrations.length === 0) issues.push('迁移链不能为空，至少要有 version 1')
   migrations.forEach((m, i) => {
     if (m.version !== i + 1) {
-      issues.push(`第 ${i + 1} 条迁移的 version 是 ${m.version}，应为 ${i + 1}（约束 10：一版一条、按序排列）`)
+      issues.push(`第 ${i + 1} 条迁移的 version 是 ${m.version}，应为 ${i + 1}（迁移链必须一版一条、按序排列）`)
     }
   })
   return issues

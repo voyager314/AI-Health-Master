@@ -8,14 +8,12 @@
  *
  * 校验是纯函数、零依赖，因此导入校验天然满足「不碰数据库」的要求。
  */
+import type { WorkoutItem } from './records.ts'
 import { ISO_UTC, STORAGE_REF, UUID_V7 } from './formats.ts'
 import {
   CONFIDENCE_LEVELS,
-  EXERCISE_PATTERNS,
   INPUT_SOURCES,
   MEAL_ITEM_SOURCES,
-  METRIC_TYPES,
-  WORKOUT_STATUSES,
   type StoreName,
 } from './records.ts'
 
@@ -39,6 +37,8 @@ export type FieldRule =
   | { readonly type: 'blob' }
   /** 埋点属性：扁平对象，值只能是标量。结构上排除自由文本载荷与嵌套对象 */
   | { readonly type: 'analyticsProps' }
+  /** 运动记录的项目卡片数组，见 `ITEM_FIELDS` */
+  | { readonly type: 'itemList' }
 
 export interface FieldSpec {
   readonly rule: FieldRule
@@ -54,6 +54,83 @@ export interface ValidationIssue {
 
 const f = (rule: FieldRule, nullable = false): FieldSpec => ({ rule, nullable })
 
+// ── 项目卡片 ────────────────────────────────────────────────────────────────
+
+/** 卡片允许出现的字段。数组里多出任何一个键都说明文件被改过或来自别的数据模型 */
+const ITEM_FIELDS = ['name', 'sets', 'reps', 'weight_kg', 'note'] as const
+
+/** 项目名长度上限，字。超长的名字在列表里无法一眼读完，摘要也失去意义 */
+export const ITEM_NAME_MAX_LENGTH = 40
+
+/** 项目描述长度上限，字 */
+export const ITEM_NOTE_MAX_LENGTH = 200
+
+/**
+ * 重量是否落在 0.5 kg 的网格上。
+ *
+ * 用乘以 2 取整来判断，而不是比较浮点余数：0.1 + 0.2 这类表示误差会让余数判据
+ * 把合法的 0.5 步进重量判成不合法。
+ */
+function onHalfKilogramGrid(value: number): boolean {
+  return Number.isInteger(value * 2)
+}
+
+/** 校验一张项目卡片，返回全部问题；合规返回空数组 */
+function checkItem(item: unknown, index: number): ValidationIssue[] {
+  if (typeof item !== 'object' || item === null || Array.isArray(item)) {
+    return [{ field: `items[${index}]`, message: '应为对象' }]
+  }
+
+  const card = item as Record<string, unknown>
+  const issues: ValidationIssue[] = []
+  const at = (field: string) => `items[${index}].${field}`
+
+  for (const field of ITEM_FIELDS) {
+    if (!(field in card)) issues.push({ field: at(field), message: '缺少必需字段' })
+  }
+  for (const field of Object.keys(card)) {
+    if (!(ITEM_FIELDS as readonly string[]).includes(field)) {
+      issues.push({ field: at(field), message: '未知字段' })
+    }
+  }
+
+  const { name, sets, reps, weight_kg: weight, note } = card
+
+  if (typeof name !== 'string' || name.length === 0) {
+    issues.push({ field: at('name'), message: '项目名必填' })
+  } else if (name.length > ITEM_NAME_MAX_LENGTH) {
+    issues.push({ field: at('name'), message: `长度不能超过 ${ITEM_NAME_MAX_LENGTH}` })
+  }
+
+  for (const [field, value] of [
+    ['sets', sets],
+    ['reps', reps],
+  ] as const) {
+    if (value === null || value === undefined) continue
+    if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
+      issues.push({ field: at(field), message: '应为正整数，未填则须为 null' })
+    }
+  }
+
+  if (weight !== null && weight !== undefined) {
+    if (typeof weight !== 'number' || !Number.isFinite(weight) || weight < 0) {
+      issues.push({ field: at('weight_kg'), message: '应为不小于 0 的数值，未填则须为 null' })
+    } else if (!onHalfKilogramGrid(weight)) {
+      issues.push({ field: at('weight_kg'), message: '步进为 0.5 kg' })
+    }
+  }
+
+  if (note !== null && note !== undefined) {
+    if (typeof note !== 'string') {
+      issues.push({ field: at('note'), message: '应为字符串或 null' })
+    } else if (note.length > ITEM_NOTE_MAX_LENGTH) {
+      issues.push({ field: at('note'), message: `长度不能超过 ${ITEM_NOTE_MAX_LENGTH}` })
+    }
+  }
+
+  return issues
+}
+
 // ── 校验实现 ────────────────────────────────────────────────────────────────
 
 /** 返回不合规原因；合规返回 null */
@@ -62,7 +139,7 @@ function checkRule(rule: FieldRule, value: unknown): string | null {
     case 'uuidV7':
       if (typeof value !== 'string') return '应为字符串'
       if (!UUID_V7.test(value)) {
-        return '应为 UUID v7。约束 2 禁止 v4（crypto.randomUUID 返回的就是 v4）与自增 ID'
+        return '主键必须是 UUID v7；v4 与自增 ID 都不允许，前者无法保证时间有序'
       }
       return null
 
@@ -73,14 +150,14 @@ function checkRule(rule: FieldRule, value: unknown): string | null {
     case 'isoUtc':
       if (typeof value !== 'string') return '应为字符串'
       if (!ISO_UTC.test(value)) {
-        return '应为以 Z 结尾的 UTC ISO 8601。约束 6 禁止带时区偏移的时间字符串与时间戳数字'
+        return '应为以 Z 结尾的 UTC ISO 8601；带时区偏移的时间字符串与时间戳数字都不允许'
       }
       if (Number.isNaN(Date.parse(value))) return '不是合法时刻'
       return null
 
     case 'storageRef':
       if (typeof value !== 'string') return '应为字符串'
-      if (!STORAGE_REF.test(value)) return '应为 local://<uuid-v7> 格式（约束 7）'
+      if (!STORAGE_REF.test(value)) return '应为 local://<uuid-v7> 格式'
       return null
 
     case 'boolean':
@@ -134,6 +211,10 @@ function checkRule(rule: FieldRule, value: unknown): string | null {
       }
       return null
     }
+
+    case 'itemList':
+      // 逐项的问题由 `checkItem` 按字段定位，这里只挡「不是数组」与「空数组」
+      return null
   }
 }
 
@@ -161,6 +242,20 @@ export function validateRecord(spec: RecordSpec, value: unknown): ValidationIssu
       if (!nullable) issues.push({ field, message: '不允许为 null' })
       continue
     }
+
+    if (rule.type === 'itemList') {
+      if (!Array.isArray(v)) {
+        issues.push({ field, message: '应为项目卡片数组' })
+        continue
+      }
+      if (v.length === 0) {
+        issues.push({ field, message: '至少需要一张项目卡片' })
+        continue
+      }
+      v.forEach((item, index) => issues.push(...checkItem(item, index)))
+      continue
+    }
+
     const reason = checkRule(rule, v)
     if (reason !== null) issues.push({ field, message: reason })
   }
@@ -174,7 +269,7 @@ export function validateRecord(spec: RecordSpec, value: unknown): ValidationIssu
 
 // ── 各 store 的规格 ─────────────────────────────────────────────────────────
 
-/** 9 张业务表共有的审计字段规格：主键、幂等键、用户、版本、时刻与时区偏移 */
+/** 6 张业务表共有的审计字段规格：主键、幂等键、用户、版本、时刻与时区偏移 */
 export const AUDIT_SPEC: RecordSpec = {
   id: f({ type: 'uuidV7' }),
   client_id: f({ type: 'uuidV7' }),
@@ -188,43 +283,11 @@ export const AUDIT_SPEC: RecordSpec = {
 }
 
 export const RECORD_SPECS: Readonly<Record<StoreName, RecordSpec>> = {
-  exercise: {
+  workout_log: {
     ...AUDIT_SPEC,
-    name: f({ type: 'string', maxLength: 60 }),
-    pattern: f({ type: 'enum', values: EXERCISE_PATTERNS }),
-    primary_muscle: f({ type: 'string', maxLength: 40 }),
-    metric_type: f({ type: 'enum', values: METRIC_TYPES }),
-    is_custom: f({ type: 'boolean' }),
-  },
-
-  workout: {
-    ...AUDIT_SPEC,
-    started_at: f({ type: 'isoUtc' }),
-    ended_at: f({ type: 'isoUtc' }, true),
-    template_id: f({ type: 'uuidV7' }, true),
-    note: f({ type: 'string', maxLength: 500, allowEmpty: true }, true),
-    status: f({ type: 'enum', values: WORKOUT_STATUSES }),
-  },
-
-  workout_exercise: {
-    ...AUDIT_SPEC,
-    workout_id: f({ type: 'uuidV7' }),
-    exercise_id: f({ type: 'uuidV7' }),
-    order_index: f({ type: 'int', min: 0 }),
-  },
-
-  set_entry: {
-    ...AUDIT_SPEC,
-    workout_exercise_id: f({ type: 'uuidV7' }),
-    // 上限取宽松值：识别出 500kg 这类异常值不在这里拦，而是在界面上高亮
-    // 并要求用户二次确认——校验层拒绝会让用户无法保存真实的大重量
-    weight_kg: f({ type: 'number', min: 0, max: 1000 }, true),
-    reps: f({ type: 'int', min: 1, max: 1000 }, true),
-    duration_sec: f({ type: 'int', min: 1, max: 86_400 }, true),
-    rpe: f({ type: 'number', min: 1, max: 10 }, true),
-    is_warmup: f({ type: 'boolean' }),
+    logged_at: f({ type: 'isoUtc' }),
     input_source: f({ type: 'enum', values: INPUT_SOURCES }),
-    confidence: f({ type: 'enum', values: CONFIDENCE_LEVELS }, true),
+    items: f({ type: 'itemList' }),
   },
 
   body_metric: {
@@ -304,3 +367,5 @@ export const RECORD_SPECS: Readonly<Record<StoreName, RecordSpec>> = {
     user_id: f({ type: 'userId' }),
   },
 }
+
+export type { WorkoutItem }

@@ -38,11 +38,11 @@ describe('JSON 导出', () => {
   })
 
   it('空库也能导出，各表为空数组', () => {
-    const file = toJsonFile(snapshotWith({ body_metric: [], exercise: [] }))
+    const file = toJsonFile(snapshotWith({ body_metric: [], workout_log: [] }))
     const parsed = JSON.parse(file.text)
 
     expect(parsed.records.body_metric).toEqual([])
-    expect(parsed.records.exercise).toEqual([])
+    expect(parsed.records.workout_log).toEqual([])
   })
 
   it('文件名含导出时刻，且不含会被文件系统拒绝的字符', () => {
@@ -68,7 +68,7 @@ describe('CSV 导出', () => {
     const files = toCsvFiles(
       snapshotWith({
         body_metric: [{ id: 'a', weight_kg: 72.4 }],
-        exercise: [],
+        workout_log: [],
       }),
     )
 

@@ -5,7 +5,7 @@
  * 能不能定位到具体位置」——而这几件事恰恰决定了用户在导入失败时能否自己修好文件。
  */
 import { parseImportFile, ImportValidationError } from '@/domain'
-import { sampleExercise, sampleWeight } from '@/test/records.ts'
+import { sampleWeight, sampleWorkoutLog } from '@/test/records.ts'
 import { describe, expect, it } from 'vitest'
 
 function validFile(records: Record<string, readonly unknown[]> = {}): string {
@@ -16,22 +16,22 @@ function validFile(records: Record<string, readonly unknown[]> = {}): string {
   })
 }
 
-const oneExercise = sampleExercise
+const oneLog = sampleWorkoutLog
 const oneWeight = sampleWeight
 
 describe('合法文件', () => {
   it('接受并返回记录集合', () => {
-    const parsed = parseImportFile(validFile({ exercise: [oneExercise] }), {
+    const parsed = parseImportFile(validFile({ workout_log: [oneLog] }), {
       targetVersion: 1,
     })
 
-    expect(parsed.records.exercise).toEqual([oneExercise])
+    expect(parsed.records.workout_log).toEqual([oneLog])
     expect(parsed.sourceVersion).toBe(1)
     expect(parsed.exportedAt).toBe('2026-10-29T02:15:30.000Z')
   })
 
   it('表缺席时补为空数组，调用方不必判空', () => {
-    const parsed = parseImportFile(validFile({ exercise: [oneExercise] }), {
+    const parsed = parseImportFile(validFile({ workout_log: [oneLog] }), {
       targetVersion: 1,
     })
 
@@ -41,7 +41,7 @@ describe('合法文件', () => {
 
   it('空记录集合被接受', () => {
     expect(() =>
-      parseImportFile(validFile({ exercise: [], body_metric: [] }), { targetVersion: 1 }),
+      parseImportFile(validFile({ workout_log: [], body_metric: [] }), { targetVersion: 1 }),
     ).not.toThrow()
   })
 })
@@ -116,7 +116,7 @@ describe('版本', () => {
     const file = JSON.stringify({
       schema_version: 1,
       exported_at: '2026-10-29T02:15:30.000Z',
-      records: { exercise: [oneExercise] },
+      records: { workout_log: [oneLog] },
     })
 
     const parsed = parseImportFile(file, {
@@ -127,13 +127,13 @@ describe('版本', () => {
           // 人造的版本 2：给每条动作补一个字段
           up: (records) => ({
             ...records,
-            exercise: (records.exercise ?? []).map((row) => ({ ...row, level: 2 })),
+            workout_log: (records.workout_log ?? []).map((row) => ({ ...row, level: 2 })),
           }),
         },
       ],
     })
 
-    expect(parsed.records.exercise[0]?.level).toBe(2)
+    expect(parsed.records.workout_log[0]?.level).toBe(2)
   })
 
   it('缺少对应迁移时拒绝，而不是按新结构猜测旧数据', () => {
@@ -193,7 +193,7 @@ describe('记录级拒绝', () => {
   })
 
   it('某张表的取值不是数组时拒绝', () => {
-    const file = validFile({ exercise: {} as never })
+    const file = validFile({ workout_log: {} as never })
     expect(() => parseImportFile(file, { targetVersion: 1 })).toThrow(ImportValidationError)
   })
 

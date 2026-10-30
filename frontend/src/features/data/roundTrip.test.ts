@@ -20,12 +20,9 @@ import {
   aBodyMetric,
   aMeal,
   aMealItem,
-  aSetEntry,
   aTarget,
-  aWorkout,
-  aWorkoutExercise,
+  aWorkoutLog,
   anAppMeta,
-  anExercise,
   fixedDate,
 } from '@/test/fixtures.ts'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -69,7 +66,7 @@ afterEach(() => testDb.close())
 type Seeded = Record<BusinessStoreName, { id: string }>
 
 /**
- * 往 9 张业务表各写一组记录，字段取值刻意互不相同。
+ * 往 6 张业务表各写一条记录，字段取值刻意互不相同。
  *
  * 取值相同的话，字段串位（把 A 的字段写进 B）在往返后依然「相等」，测不出来。
  * 外键指向本次真实构造出的记录，而不是各自随机的主键——指向不存在的记录时，
@@ -81,39 +78,6 @@ async function seedAllTables(): Promise<Seeded> {
   const west = momentAt(AT_WEST, -300)
 
   // 被引用的记录先建，后面的外键取它们的真实主键
-  const exercise = makeRecord(
-    'exercise',
-    anExercise({
-      name: '杠铃卧推',
-      pattern: 'horizontal_push',
-      primary_muscle: '胸',
-      metric_type: 'weight',
-      is_custom: true,
-    }),
-    east,
-  )
-
-  const workout = makeRecord(
-    'workout',
-    aWorkout({
-      started_at: AT,
-      ended_at: '2026-10-29T03:20:00.000Z',
-      note: '推日，状态一般',
-      status: 'saved',
-    }),
-    east,
-  )
-
-  const workoutExercise = makeRecord(
-    'workout_exercise',
-    aWorkoutExercise({
-      workout_id: workout.id,
-      exercise_id: exercise.id,
-      order_index: 3,
-    }),
-    east,
-  )
-
   const meal = makeRecord(
     'meal',
     aMeal({
@@ -130,19 +94,18 @@ async function seedAllTables(): Promise<Seeded> {
   )
 
   const records: Seeded = {
-    exercise,
-    workout,
-    workout_exercise: workoutExercise,
-    set_entry: makeRecord(
-      'set_entry',
-      aSetEntry({
-        workout_exercise_id: workoutExercise.id,
-        weight_kg: 82.5,
-        reps: 6,
-        rpe: 8,
-        is_warmup: false,
+    workout_log: makeRecord(
+      'workout_log',
+      aWorkoutLog({
+        logged_at: AT,
         input_source: 'voice',
-        confidence: 'medium',
+        items: [
+          { name: '杠铃卧推', sets: 4, reps: 8, weight_kg: 82.5, note: '右肩有点紧' },
+          // 只记得项目名：三项指标全为 null 是合法状态
+          { name: '飞鸟', sets: null, reps: null, weight_kg: null, note: null },
+          // 只有部分指标
+          { name: '深蹲', sets: 5, reps: null, weight_kg: 100, note: null },
+        ],
       }),
       west,
     ),
@@ -243,23 +206,30 @@ describe('全表往返', () => {
     expect(weight?.measured_at).toBe(AT_WEST)
     expect(weight?.created_at).toBe(AT_WEST)
 
-    const [entry] = await testDb.repos.set_entry.list()
-    expect(entry?.tz_offset_minutes).toBe(-300)
+    const [log] = await testDb.repos.workout_log.list()
+    expect(log?.tz_offset_minutes).toBe(-300)
+    expect(log?.logged_at).toBe(AT)
+  })
 
-    const [exercise] = await testDb.repos.exercise.list()
-    expect(exercise?.tz_offset_minutes).toBe(480)
+  it('项目卡片的数量、顺序与各字段值不因往返改变', async () => {
+    const seeded = await seedAllTables()
+    const exported = JSON.parse(await roundTrip())
+
+    const [log] = await testDb.repos.workout_log.list()
+    expect(log?.id).toBe(seeded.workout_log.id)
+    expect(log?.items).toEqual([
+      { name: '杠铃卧推', sets: 4, reps: 8, weight_kg: 82.5, note: '右肩有点紧' },
+      { name: '飞鸟', sets: null, reps: null, weight_kg: null, note: null },
+      { name: '深蹲', sets: 5, reps: null, weight_kg: 100, note: null },
+    ])
+    // 导出文件里同样是嵌套数组，没有被摊平
+    expect(exported.records.workout_log[0].items).toHaveLength(3)
+    expect(exported.records.workout_log[0].items[0].name).toBe('杠铃卧推')
   })
 
   it('外键关系在往返后依然成立', async () => {
     const seeded = await seedAllTables()
     await roundTrip()
-
-    const [link] = await testDb.repos.workout_exercise.list()
-    expect(link?.workout_id).toBe(seeded.workout.id)
-    expect(link?.exercise_id).toBe(seeded.exercise.id)
-
-    const [set] = await testDb.repos.set_entry.list()
-    expect(set?.workout_exercise_id).toBe(seeded.workout_exercise.id)
 
     const [item] = await testDb.repos.meal_item.list()
     expect(item?.meal_id).toBe(seeded.meal.id)
@@ -334,6 +304,6 @@ describe('边界', () => {
     const result = await transfer.importAll({ text, confirmed: true, sink })
 
     expect(result.imported).toBe(true)
-    expect(await testDb.repos.exercise.list()).toHaveLength(1)
+    expect(await testDb.repos.workout_log.list()).toHaveLength(1)
   })
 })

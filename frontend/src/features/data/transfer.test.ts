@@ -12,7 +12,7 @@ import type { FileSink } from '@/shared'
 import { LATEST_SCHEMA_VERSION, snapshotDatabase } from '@/storage'
 import { createTestDb, type TestDb } from '@/test/db.ts'
 import { fixedDate } from '@/test/fixtures.ts'
-import { sampleExercise, sampleWeight } from '@/test/records.ts'
+import { sampleWeight, sampleWorkoutLog } from '@/test/records.ts'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 const AT = '2026-10-29T02:15:30.000Z'
@@ -58,7 +58,7 @@ function fileWith(records: Record<string, readonly unknown[]>): string {
 }
 
 async function seedTwoRecords() {
-  await testDb.repos.exercise.put(sampleExercise)
+  await testDb.repos.workout_log.put(sampleWorkoutLog)
   await testDb.repos.body_metric.put(sampleWeight)
 }
 
@@ -69,7 +69,7 @@ describe('导出', () => {
 
     expect(saved).toHaveLength(1)
     const parsed = JSON.parse(saved[0]!.text)
-    expect(parsed.records.exercise).toHaveLength(1)
+    expect(parsed.records.workout_log).toHaveLength(1)
     expect(parsed.records.body_metric).toHaveLength(1)
   })
 
@@ -99,17 +99,17 @@ describe('导出', () => {
     await transfer.exportAll({ sink, format: 'csv' })
 
     const names = saved.map((f) => f.filename)
-    expect(names.some((n) => n.includes('exercise'))).toBe(true)
+    expect(names.some((n) => n.includes('workout_log'))).toBe(true)
     expect(names.some((n) => n.includes('body_metric'))).toBe(true)
   })
 })
 
 describe('导入预览', () => {
   it('解析成功就能给出条数，不必动数据库', async () => {
-    const parsed = transfer.previewImport(fileWith({ exercise: [sampleExercise] }))
+    const parsed = transfer.previewImport(fileWith({ workout_log: [sampleWorkoutLog] }))
 
-    expect(parsed.records.exercise).toHaveLength(1)
-    expect(await testDb.repos.exercise.list()).toEqual([])
+    expect(parsed.records.workout_log).toHaveLength(1)
+    expect(await testDb.repos.workout_log.list()).toEqual([])
   })
 
   it('文件有问题时抛错并定位到具体位置', () => {
@@ -124,7 +124,7 @@ describe('导入', () => {
     await seedTwoRecords()
 
     const result = await transfer.importAll({
-      text: fileWith({ exercise: [] }),
+      text: fileWith({ workout_log: [] }),
       confirmed: false,
       sink,
     })
@@ -132,31 +132,34 @@ describe('导入', () => {
     expect(result.imported).toBe(false)
     expect(result.backup).toBeUndefined()
     expect(saved).toEqual([])
-    expect(await testDb.repos.exercise.list()).toHaveLength(1)
+    expect(await testDb.repos.workout_log.list()).toHaveLength(1)
   })
 
   it('未确认时仍返回解析结果，供界面展示将要发生什么', async () => {
     const result = await transfer.importAll({
-      text: fileWith({ exercise: [sampleExercise] }),
+      text: fileWith({ workout_log: [sampleWorkoutLog] }),
       confirmed: false,
       sink,
     })
 
-    expect(result.parsed.records.exercise).toHaveLength(1)
+    expect(result.parsed.records.workout_log).toHaveLength(1)
   })
 
   it('确认后替换全库', async () => {
     await seedTwoRecords()
-    const incoming = { ...sampleExercise, name: '新动作' }
+    const incoming = {
+      ...sampleWorkoutLog,
+      input_source: 'voice' as const,
+    }
 
     const result = await transfer.importAll({
-      text: fileWith({ exercise: [incoming] }),
+      text: fileWith({ workout_log: [incoming] }),
       confirmed: true,
       sink,
     })
 
     expect(result.imported).toBe(true)
-    expect((await testDb.repos.exercise.list()).map((e) => e.name)).toEqual(['新动作'])
+    expect((await testDb.repos.workout_log.list()).map((log) => log.input_source)).toEqual(['voice'])
     expect(await testDb.repos.body_metric.list()).toEqual([])
   })
 
@@ -164,7 +167,7 @@ describe('导入', () => {
     await seedTwoRecords()
 
     const result = await transfer.importAll({
-      text: fileWith({ exercise: [] }),
+      text: fileWith({ workout_log: [] }),
       confirmed: true,
       sink,
     })
@@ -173,7 +176,7 @@ describe('导入', () => {
     expect(saved[0]!.filename).toContain('import-backup')
 
     const backup = JSON.parse(saved[0]!.text)
-    expect(backup.records.exercise).toHaveLength(1)
+    expect(backup.records.workout_log).toHaveLength(1)
     expect(backup.records.body_metric).toHaveLength(1)
     expect(result.backup?.filename).toBe(saved[0]!.filename)
   })
@@ -188,13 +191,13 @@ describe('导入', () => {
 
     await expect(
       transfer.importAll({
-        text: fileWith({ exercise: [] }),
+        text: fileWith({ workout_log: [] }),
         confirmed: true,
         sink: failing,
       }),
     ).rejects.toThrow('磁盘已满')
 
-    expect(await testDb.repos.exercise.list()).toHaveLength(1)
+    expect(await testDb.repos.workout_log.list()).toHaveLength(1)
     expect(await testDb.repos.body_metric.list()).toHaveLength(1)
   })
 
@@ -207,7 +210,7 @@ describe('导入', () => {
     ).rejects.toThrow(ImportValidationError)
 
     expect(saved).toEqual([])
-    expect(await testDb.repos.exercise.list()).toHaveLength(1)
+    expect(await testDb.repos.workout_log.list()).toHaveLength(1)
   })
 
   it('文件版本高于应用时拒绝，且不产生备份', async () => {
@@ -223,7 +226,7 @@ describe('导入', () => {
     ).rejects.toThrow(/升级应用/)
 
     expect(saved).toEqual([])
-    expect(await testDb.repos.exercise.list()).toHaveLength(1)
+    expect(await testDb.repos.workout_log.list()).toHaveLength(1)
   })
 })
 
@@ -234,7 +237,7 @@ describe('清空', () => {
     const result = await transfer.clearAll({ confirmed: false })
 
     expect(result.cleared).toBe(false)
-    expect(await testDb.repos.exercise.list()).toHaveLength(1)
+    expect(await testDb.repos.workout_log.list()).toHaveLength(1)
     expect(await testDb.repos.body_metric.list()).toHaveLength(1)
   })
 
@@ -244,7 +247,7 @@ describe('清空', () => {
     const result = await transfer.clearAll({ confirmed: true })
 
     expect(result.cleared).toBe(true)
-    expect(await testDb.repos.exercise.list()).toEqual([])
+    expect(await testDb.repos.workout_log.list()).toEqual([])
     expect(await testDb.repos.body_metric.list()).toEqual([])
     expect(await testDb.repos.app_meta.list()).toEqual([])
   })
@@ -257,7 +260,7 @@ describe('清空', () => {
     await testDb.repos.body_metric.put(fresh)
 
     expect(await testDb.repos.body_metric.list()).toHaveLength(1)
-    expect(await testDb.repos.exercise.list()).toEqual([])
+    expect(await testDb.repos.workout_log.list()).toEqual([])
   })
 })
 
@@ -271,7 +274,7 @@ describe('导出的文件能再导入回来', () => {
     const result = await transfer.importAll({ text: exported, confirmed: true, sink })
 
     expect(result.imported).toBe(true)
-    expect((await testDb.repos.exercise.list())[0]?.id).toBe(sampleExercise.id)
+    expect((await testDb.repos.workout_log.list())[0]?.id).toBe(sampleWorkoutLog.id)
     expect((await testDb.repos.body_metric.list())[0]?.id).toBe(sampleWeight.id)
   })
 })

@@ -16,14 +16,14 @@ import {
   withAuditForSoftDelete,
   withAuditForUpdate,
 } from '@/storage/indexeddb/write.ts'
-import { aBodyMetric, anExercise, fixedDate } from '@/test/fixtures.ts'
+import { aBodyMetric, aWorkoutLog, fixedDate } from '@/test/fixtures.ts'
 import { describe, expect, it } from 'vitest'
 
 const UUID_V7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
-describe('主键（约束 2）', () => {
+describe('主键', () => {
   it('是 UUID v7：版本位为 7', () => {
-    const record = withAuditForCreate('exercise', anExercise(), createNow())
+    const record = withAuditForCreate('workout_log', aWorkoutLog(), createNow())
     expect(record.id).toMatch(UUID_V7)
     // 第 15 个字符（索引 14）是版本位
     expect(record.id[14]).toBe('7')
@@ -32,46 +32,46 @@ describe('主键（约束 2）', () => {
   it('时间有序：先创建的记录字典序更小', () => {
     const ids = Array.from(
       { length: 20 },
-      () => withAuditForCreate('exercise', anExercise(), createNow()).id,
+      () => withAuditForCreate('workout_log', aWorkoutLog(), createNow()).id,
     )
     expect([...ids].sort()).toEqual(ids)
   })
 
   it('client_id 与 id 同值（本期），作为上云后的幂等键', () => {
-    const record = withAuditForCreate('exercise', anExercise(), createNow())
+    const record = withAuditForCreate('workout_log', aWorkoutLog(), createNow())
     expect(record.client_id).toBe(record.id)
   })
 
   it('两条记录的主键不重复', () => {
-    const a = withAuditForCreate('exercise', anExercise(), createNow())
-    const b = withAuditForCreate('exercise', anExercise(), createNow())
+    const a = withAuditForCreate('workout_log', aWorkoutLog(), createNow())
+    const b = withAuditForCreate('workout_log', aWorkoutLog(), createNow())
     expect(a.id).not.toBe(b.id)
   })
 })
 
-describe('审计字段注入（约束 3/4/5）', () => {
+describe('审计字段注入', () => {
   it('未传 user_id 的载荷落库后 user_id 为 local', () => {
-    const record = withAuditForCreate('exercise', anExercise(), createNow())
+    const record = withAuditForCreate('workout_log', aWorkoutLog(), createNow())
     expect(record.user_id).toBe(LOCAL_USER_ID)
     expect(record.user_id).toBe('local')
   })
 
   it('version 为 1、deleted_at 为 null、created_at 与 updated_at 相同', () => {
-    const record = withAuditForCreate('exercise', anExercise(), createNow())
+    const record = withAuditForCreate('workout_log', aWorkoutLog(), createNow())
     expect(record.version).toBe(INITIAL_VERSION)
     expect(record.deleted_at).toBeNull()
     expect(record.created_at).toBe(record.updated_at)
   })
 
   it('注入结果符合字段规格', () => {
-    const record = withAuditForCreate('exercise', anExercise(), createNow())
-    expect(validateRecord(RECORD_SPECS.exercise, record)).toEqual([])
+    const record = withAuditForCreate('workout_log', aWorkoutLog(), createNow())
+    expect(validateRecord(RECORD_SPECS.workout_log, record)).toEqual([])
   })
 })
 
-describe('时间与时区（约束 6）', () => {
+describe('时间与时区', () => {
   it('时间字段是以 Z 结尾的 UTC ISO 8601', () => {
-    const record = withAuditForCreate('exercise', anExercise(), createNow())
+    const record = withAuditForCreate('workout_log', aWorkoutLog(), createNow())
     expect(record.created_at).toMatch(/Z$/)
   })
 
@@ -134,7 +134,7 @@ describe('更新', () => {
   })
 })
 
-describe('软删除（约束 5）', () => {
+describe('软删除', () => {
   const base = withAuditForCreate('body_metric', aBodyMetric(), createNow())
   const at = createNow(() => fixedDate('2026-10-29T04:00:00.000Z', 480))
 
@@ -158,18 +158,18 @@ describe('软删除（约束 5）', () => {
 
 describe('落库校验', () => {
   it('合规记录通过', () => {
-    const record = withAuditForCreate('exercise', anExercise(), createNow())
-    expect(() => assertValidRecord('exercise', record)).not.toThrow()
+    const record = withAuditForCreate('workout_log', aWorkoutLog(), createNow())
+    expect(() => assertValidRecord('workout_log', record)).not.toThrow()
   })
 
-  it('UUID v4 主键被拒绝（约束 2 要求 v7）', () => {
+  it('UUID v4 主键被拒绝——主键必须是 v7', () => {
     const record = {
-      ...withAuditForCreate('exercise', anExercise(), createNow()),
+      ...withAuditForCreate('workout_log', aWorkoutLog(), createNow()),
       id: '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d', // v4
     }
     const error = (() => {
       try {
-        assertValidRecord('exercise', record)
+        assertValidRecord('workout_log', record)
       } catch (e) {
         return e
       }
@@ -180,7 +180,7 @@ describe('落库校验', () => {
     expect((error as RecordValidationError).issues[0]?.message).toContain('v7')
   })
 
-  it('带时区偏移的时间字符串被拒绝（约束 6 要求 UTC + 独立 offset）', () => {
+  it('带时区偏移的时间字符串被拒绝——时间存 UTC，偏移另存', () => {
     const record = {
       ...withAuditForCreate('body_metric', aBodyMetric(), createNow()),
       measured_at: '2026-10-28T12:00:00+08:00',

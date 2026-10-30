@@ -26,13 +26,10 @@ export {
   ALL_STORE_NAMES,
   BUSINESS_STORE_NAMES,
   CONFIDENCE_LEVELS,
-  EXERCISE_PATTERNS,
   EXPORTED_STORE_NAMES,
   INPUT_SOURCES,
   INTERNAL_STORE_NAMES,
   MEAL_ITEM_SOURCES,
-  METRIC_TYPES,
-  WORKOUT_STATUSES,
 } from './records.ts'
 
 export type {
@@ -45,23 +42,24 @@ export type {
   BusinessRecordMap,
   BusinessStoreName,
   ConfidenceLevel,
-  Exercise,
-  ExercisePattern,
   ExportedStoreName,
   InputSource,
   InternalStoreName,
   Meal,
   MealItem,
   MealItemSource,
-  MetricType,
   PendingOp,
-  SetEntry,
   StoreName,
   Target,
-  Workout,
-  WorkoutExercise,
-  WorkoutStatus,
+  WorkoutItem,
+  WorkoutLog,
 } from './records.ts'
 
-export { AUDIT_SPEC, RECORD_SPECS, validateRecord } from './validation.ts'
+export {
+  AUDIT_SPEC,
+  ITEM_NAME_MAX_LENGTH,
+  ITEM_NOTE_MAX_LENGTH,
+  RECORD_SPECS,
+  validateRecord,
+} from './validation.ts'
 export type { FieldRule, FieldSpec, RecordSpec, ValidationIssue } from './validation.ts'

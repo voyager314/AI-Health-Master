@@ -11,7 +11,7 @@ import { closeDatabase } from '@/storage/indexeddb/db.ts'
 import { createRepositories } from '@/storage/repositories/index.ts'
 import type { RepositorySet } from '@/storage/repositories/types.ts'
 
-import { aBodyMetric, aWorkout } from './fixtures.ts'
+import { aBodyMetric, aWorkoutLog } from './fixtures.ts'
 import { makeRecord, momentAt } from './records.ts'
 
 const AT = '2026-10-29T02:00:00.000Z'
@@ -22,7 +22,7 @@ export function defaultRepositories(): RepositorySet {
 }
 
 /**
- * 往默认数据库写入一条体重记录与一次训练。
+ * 往默认数据库写入一条体重记录与一条运动记录。
  *
  * 保持最小：界面断言只关心「有没有数据」，灌入更多只会让失败信息更难读。
  */
@@ -31,7 +31,7 @@ export async function seedDefaultDatabase(): Promise<void> {
   const now = momentAt(AT, 480)
 
   await repos.body_metric.put(makeRecord('body_metric', aBodyMetric(), now))
-  await repos.workout.put(makeRecord('workout', aWorkout({ status: 'saved' }), now))
+  await repos.workout_log.put(makeRecord('workout_log', aWorkoutLog(), now))
 }
 
 /** 清空默认数据库并释放连接，供用例之间互不干扰 */

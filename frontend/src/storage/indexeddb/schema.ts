@@ -6,8 +6,7 @@
  *
  * 两个 IndexedDB 的硬性限制影响了索引选择：
  *
- *   1. **布尔值不是合法 key。** `exercise.is_custom`、`set_entry.is_warmup` 这类字段
- *      无法建索引，只能内存过滤。
+ *   1. **布尔值不是合法 key。** 这类字段无法建索引，只能内存过滤。
  *   2. **索引会跳过被索引字段为 null/undefined 的记录。** 因此 `deleted_at` 上的索引
  *      只会包含「已删除」的记录，用它查不出「未删除」的。排除软删除记录必须在内存中做
  *      （这也正好符合「取数 + 内存过滤」的形状）。
@@ -19,15 +18,12 @@ import type {
   AppMeta,
   BlobRecord,
   BodyMetric,
-  Exercise,
   Meal,
   MealItem,
   PendingOp,
-  SetEntry,
   StoreName,
   Target,
-  Workout,
-  WorkoutExercise,
+  WorkoutLog,
 } from '@/entities'
 import type { DBSchema } from 'idb'
 
@@ -37,36 +33,16 @@ export interface StoreDef {
   readonly name: StoreName
   readonly keyPath: string
   readonly indexes: readonly string[]
-  /** business = 9 张业务表，其审计字段由存储层注入；internal = 其余 3 个 */
+  /** business = 6 张业务表，其审计字段由存储层注入；internal = 其余 3 个 */
   readonly kind: 'business' | 'internal'
 }
 
 export const STORES: readonly StoreDef[] = [
   {
-    name: 'exercise',
+    name: 'workout_log',
     keyPath: 'id',
-    // is_custom 无法建索引（布尔不是合法 key），按 pattern 取数后内存过滤
-    indexes: ['user_id', 'pattern'],
-    kind: 'business',
-  },
-  {
-    name: 'workout',
-    keyPath: 'id',
-    // started_at 支撑「近 N 周训练」的范围取数；status 支撑「找进行中的训练单」
-    indexes: ['user_id', 'started_at', 'status'],
-    kind: 'business',
-  },
-  {
-    name: 'workout_exercise',
-    keyPath: 'id',
-    // exercise_id 是「上次同动作」的取数入口（v0.2 使用）
-    indexes: ['user_id', 'workout_id', 'exercise_id'],
-    kind: 'business',
-  },
-  {
-    name: 'set_entry',
-    keyPath: 'id',
-    indexes: ['user_id', 'workout_exercise_id'],
+    // logged_at 支撑近 30 天列表与「查看更早」范围内的取数
+    indexes: ['user_id', 'logged_at'],
     kind: 'business',
   },
   {
@@ -128,28 +104,13 @@ export const BUSINESS_STORES = STORES.filter((s) => s.kind === 'business')
  * idb 的类型化 schema。
  *
  * 与上面的 STORES 是两份声明：STORES 驱动建表（运行时），本类型驱动类型推导（编译期）。
- * 两者漂移由测试兜住——测试断言实际数据库里 12 个 store 与各自的索引都存在。
+ * 两者漂移由测试兜住——测试断言实际数据库里 9 个 store 与各自的索引都存在。
  */
 export interface AppDb extends DBSchema {
-  exercise: {
+  workout_log: {
     key: string
-    value: Exercise
-    indexes: { user_id: string; pattern: string }
-  }
-  workout: {
-    key: string
-    value: Workout
-    indexes: { user_id: string; started_at: string; status: string }
-  }
-  workout_exercise: {
-    key: string
-    value: WorkoutExercise
-    indexes: { user_id: string; workout_id: string; exercise_id: string }
-  }
-  set_entry: {
-    key: string
-    value: SetEntry
-    indexes: { user_id: string; workout_exercise_id: string }
+    value: WorkoutLog
+    indexes: { user_id: string; logged_at: string }
   }
   body_metric: {
     key: string

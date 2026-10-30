@@ -8,13 +8,10 @@
 import type {
   AppMeta,
   BodyMetric,
-  Exercise,
   Meal,
   MealItem,
-  SetEntry,
   Target,
-  Workout,
-  WorkoutExercise,
+  WorkoutLog,
 } from '@/entities'
 import type { CreateInput } from '@/storage/indexeddb/write.ts'
 import { v7 as uuidv7 } from 'uuid'
@@ -43,54 +40,18 @@ export function fixedDate(iso: string, tzOffsetMinutes: number): Date {
   } as unknown as Date
 }
 
-// ── 9 张业务表的 CreateInput 构造器 ─────────────────────────────────────────
+// ── 6 张业务表的 CreateInput 构造器 ─────────────────────────────────────────
 //
 // 每个构造器返回一条合规的最小记录，用 overrides 覆盖需要变化的字段。
 // 审计字段不在这里出现——它们由写入包装层注入，业务代码既看不到也传不了。
 
-export function anExercise(overrides: Partial<CreateInput<Exercise>> = {}): CreateInput<Exercise> {
+export function aWorkoutLog(
+  overrides: Partial<CreateInput<WorkoutLog>> = {},
+): CreateInput<WorkoutLog> {
   return {
-    name: '杠铃卧推',
-    pattern: 'horizontal_push',
-    primary_muscle: '胸',
-    metric_type: 'weight',
-    is_custom: false,
-    ...overrides,
-  }
-}
-
-export function aWorkout(overrides: Partial<CreateInput<Workout>> = {}): CreateInput<Workout> {
-  return {
-    started_at: '2026-10-28T10:00:00.000Z',
-    ended_at: null,
-    template_id: null,
-    note: null,
-    status: 'in_progress',
-    ...overrides,
-  }
-}
-
-export function aWorkoutExercise(
-  overrides: Partial<CreateInput<WorkoutExercise>> = {},
-): CreateInput<WorkoutExercise> {
-  return {
-    workout_id: someId(),
-    exercise_id: someId(),
-    order_index: 0,
-    ...overrides,
-  }
-}
-
-export function aSetEntry(overrides: Partial<CreateInput<SetEntry>> = {}): CreateInput<SetEntry> {
-  return {
-    workout_exercise_id: someId(),
-    weight_kg: 80,
-    reps: 8,
-    duration_sec: null,
-    rpe: null,
-    is_warmup: false,
+    logged_at: '2026-10-28T10:00:00.000Z',
     input_source: 'manual',
-    confidence: null,
+    items: [{ name: '杠铃卧推', sets: 4, reps: 8, weight_kg: 80, note: null }],
     ...overrides,
   }
 }

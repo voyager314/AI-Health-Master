@@ -16,7 +16,7 @@ import {
 } from '@/commands'
 import { StorageWriteError, withAuditForCreate } from '@/storage/internal'
 import { createTestDb, readPendingOps, type TestDb } from '@/test/db.ts'
-import { aBodyMetric, anExercise, fixedDate } from '@/test/fixtures.ts'
+import { aBodyMetric, aWorkoutLog, fixedDate } from '@/test/fixtures.ts'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 let testDb: TestDb
@@ -45,15 +45,15 @@ const recordWeight = defineCommand<{ weightKg: number }, string>({
 /** 跨两张表写入，用于验证多记录的全有或全无 */
 const recordTwoTables = defineCommand<{ fail: boolean }, void>({
   type: 'test/two_tables',
-  stores: ['body_metric', 'exercise'],
+  stores: ['body_metric', 'workout_log'],
   handler: async (ctx, payload) => {
     await ctx.repos.body_metric.put(
       withAuditForCreate('body_metric', aBodyMetric(), ctx.now),
       ctx.tx,
     )
     if (payload.fail) throw new Error('第二张表写入前失败')
-    await ctx.repos.exercise.put(
-      withAuditForCreate('exercise', anExercise(), ctx.now),
+    await ctx.repos.workout_log.put(
+      withAuditForCreate('workout_log', aWorkoutLog(), ctx.now),
       ctx.tx,
     )
   },
@@ -167,7 +167,7 @@ describe('成功路径', () => {
   })
 })
 
-describe('失败回滚（FR-S06.3 / FR-S01.6）', () => {
+describe('失败回滚', () => {
   it('handler 抛错时业务数据未变更，且 pending_ops 不留这条失败的命令', async () => {
     const bus = busWith(recordTwoTables)
 
@@ -185,12 +185,12 @@ describe('失败回滚（FR-S06.3 / FR-S01.6）', () => {
 
     await bus.apply('test/two_tables', { fail: false })
     expect(await testDb.repos.body_metric.list()).toHaveLength(1)
-    expect(await testDb.repos.exercise.list()).toHaveLength(1)
+    expect(await testDb.repos.workout_log.list()).toHaveLength(1)
 
     await expect(bus.apply('test/two_tables', { fail: true })).rejects.toThrow()
     // 失败那次没有增加任何记录
     expect(await testDb.repos.body_metric.list()).toHaveLength(1)
-    expect(await testDb.repos.exercise.list()).toHaveLength(1)
+    expect(await testDb.repos.workout_log.list()).toHaveLength(1)
   })
 
   it('配额满被识别为可重试，并带上可提示用户的原因', async () => {
@@ -253,8 +253,8 @@ describe('事务边界', () => {
       type: 'test/undeclared_store',
       stores: ['body_metric'],
       handler: async (ctx) => {
-        await ctx.repos.exercise.put(
-          withAuditForCreate('exercise', anExercise(), ctx.now),
+        await ctx.repos.workout_log.put(
+          withAuditForCreate('workout_log', aWorkoutLog(), ctx.now),
           ctx.tx,
         )
       },
@@ -262,6 +262,6 @@ describe('事务边界', () => {
 
     const bus = busWith(undeclared)
     await expect(bus.apply('test/undeclared_store', null)).rejects.toThrow(StorageWriteError)
-    expect(await testDb.repos.exercise.list()).toEqual([])
+    expect(await testDb.repos.workout_log.list()).toEqual([])
   })
 })

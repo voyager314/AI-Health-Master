@@ -1,5 +1,5 @@
 /**
- * 9 张业务表的 Repository 装配。
+ * 6 张业务表的 Repository 装配。
  *
  * 这是**唯一的存储实现装配点**：整个应用里只有这个文件知道当前用的是 IndexedDB。
  * 换 MySQL 时新增 `storage/mysql/repository.ts`，把下面的工厂换掉即可，
@@ -16,7 +16,7 @@ import {
 import type { ReadableRepositorySet, RepositorySet } from './types.ts'
 
 /**
- * 按当前存储实现装配出全部 9 个 Repository。
+ * 按当前存储实现装配出全部 6 个 Repository。
  *
  * `getDb` 可注入：测试据此把每个用例指向独立的数据库名，不必重置 indexedDB 全局。
  */

@@ -127,7 +127,7 @@ export interface Repository<N extends BusinessStoreName> extends ReadableReposit
   clear(tx?: WriteTx): Promise<void>
 }
 
-/** 9 张业务表的 Repository 集合 */
+/** 6 张业务表的 Repository 集合 */
 export type RepositorySet = {
   readonly [N in BusinessStoreName]: Repository<N>
 }

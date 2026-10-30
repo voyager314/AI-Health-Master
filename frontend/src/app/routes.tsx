@@ -29,14 +29,14 @@ export interface NavItem {
 /** 底部导航：三个主功能加设置，覆盖日常全部入口 */
 export const navItems: readonly NavItem[] = [
   { path: '/', label: '今日' },
-  { path: '/workout', label: '训练' },
+  { path: '/workout', label: '运动' },
   { path: '/weight', label: '体重' },
   { path: '/settings', label: '设置' },
 ]
 
 export const routeElements: readonly RouteEntry[] = [
   { path: '/', element: <HomePage /> },
-  { path: '/workout', element: <PlaceholderPage title="训练记录" /> },
+  { path: '/workout', element: <PlaceholderPage title="运动记录" /> },
   { path: '/weight', element: <PlaceholderPage title="体重趋势" /> },
   { path: '/meal', element: <PlaceholderPage title="饮食记录" /> },
   { path: '/settings', element: <SettingsPage /> },
