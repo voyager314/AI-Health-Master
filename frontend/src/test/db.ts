@@ -8,6 +8,7 @@
  * 每次调用用独立的库名，用例之间天然隔离，不必重置 indexedDB 全局。
  */
 import { closeDatabase, openDatabase, type DbProvider } from '@/storage/indexeddb/db.ts'
+import { dumpDatabase } from '@/storage/indexeddb/dump.ts'
 import type { AppDb } from '@/storage/indexeddb/schema.ts'
 import { createRepositories } from '@/storage/repositories/index.ts'
 import type { RepositorySet } from '@/storage/repositories/types.ts'
@@ -41,4 +42,13 @@ export async function createTestDb(label: string): Promise<TestDb> {
 /** 直接读 pending_ops，供断言「这次写入有没有记日志」使用 */
 export async function readPendingOps(testDb: TestDb) {
   return testDb.db.getAll('pending_ops')
+}
+
+/**
+ * 取全库快照，供断言「导出文件里有没有这条记录」使用。
+ *
+ * 转出这一层而不是让命令层的测试直接导入数据库实现：分层边界不该为一行断言开口子。
+ */
+export function snapshotOf(testDb: TestDb, takenAt: string) {
+  return dumpDatabase(testDb.db, takenAt)
 }

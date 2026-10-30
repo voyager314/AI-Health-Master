@@ -21,6 +21,7 @@ import {
   CommandPayloadError,
   DuplicateCommandError,
   UnknownCommandError,
+  type CommandContext,
   type CommandDefinition,
 } from './types.ts'
 
@@ -64,6 +65,9 @@ export function createCommandBus(options: CommandBusOptions): CommandBus {
     if (issues.length > 0) throw new CommandPayloadError(type, issues)
 
     const now = createNow(options.clock)
+    // 处理器与日志判定共用同一个上下文：判定要看到的是这次执行的真实结果，
+    // 而不是重新构造一份可能已经不同步的输入
+    let context: CommandContext | undefined
 
     return runCommandTransaction(
       {
@@ -72,9 +76,15 @@ export function createCommandBus(options: CommandBusOptions): CommandBus {
         payload,
         now,
         skipOpLog: definition.skipOpLog,
+        shouldLog: definition.shouldLog
+          ? (result) => (context ? definition.shouldLog!(context, result as never) : true)
+          : undefined,
         getDb: options.getDb,
       },
-      (tx, bulk) => definition.handler({ tx, now, repos, bulk }, payload as never),
+      (tx, bulk) => {
+        context = { tx, now, repos, bulk }
+        return definition.handler(context, payload as never)
+      },
     )
   }
 

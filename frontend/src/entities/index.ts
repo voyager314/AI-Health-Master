@@ -61,5 +61,6 @@ export {
   ITEM_NOTE_MAX_LENGTH,
   RECORD_SPECS,
   validateRecord,
+  validateWorkoutItems,
 } from './validation.ts'
 export type { FieldRule, FieldSpec, RecordSpec, ValidationIssue } from './validation.ts'

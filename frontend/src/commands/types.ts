@@ -53,6 +53,16 @@ export interface CommandDefinition<P = unknown, R = void> {
    */
   readonly validate?: (payload: unknown) => ValidationIssue[]
 
+  /**
+   * 这次执行要不要留下写操作日志。省略则一律留下。
+   *
+   * 唯一的用途是「成功但什么都没写」的命令：保留期清理在没有超期记录时就是这种情形，
+   * 给它记一条日志等于凭空制造一条没有对应写入的操作历史。
+   *
+   * 只有处理器真的写入了业务数据才返回 true，不能用来给普通命令免检。
+   */
+  shouldLog?(ctx: CommandContext, result: R): boolean
+
   readonly handler: (ctx: CommandContext, payload: P) => Promise<R>
 }
 

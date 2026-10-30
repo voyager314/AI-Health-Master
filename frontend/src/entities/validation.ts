@@ -219,6 +219,21 @@ function checkRule(rule: FieldRule, value: unknown): string | null {
 }
 
 /**
+ * 校验一组项目卡片，返回全部问题；合规返回空数组。
+ *
+ * 与落库校验共用同一套规则，只是不必先把卡片拼成一条完整记录：命令层在写入前
+ * 用它跑一遍载荷，把不合规的卡片挡在事务之外。
+ */
+export function validateWorkoutItems(items: unknown): ValidationIssue[] {
+  if (!Array.isArray(items)) return [{ field: 'items', message: '应为项目卡片数组' }]
+  if (items.length === 0) return [{ field: 'items', message: '至少需要一张项目卡片' }]
+
+  const issues: ValidationIssue[] = []
+  items.forEach((item, index) => issues.push(...checkItem(item, index)))
+  return issues
+}
+
+/**
  * 按规格校验一条记录。返回全部问题（不是遇到第一个就停），
  * 因为导入场景下用户需要一次看到所有错误而不是逐个修。
  *

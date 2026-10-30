@@ -18,12 +18,12 @@
 
 ## 4. 命令层（约束 9）
 
-- [ ] 4.1 `workout_log/create`：载荷为卡片数组，写入前跑项目卡片校验，`logged_at` 取总线算好的时刻，`input_source` 为 `manual`。完成判据：单测断言空数组被拒、项目名缺失被拒、合法载荷落库且 `pending_ops` 恰增一条
-- [ ] 4.2 同一 `client_id` 再次提交不产生第二条记录。完成判据：单测断言连续两次相同 `client_id` 的提交后库里只有一条
-- [ ] 4.3 `workout_log/update`：只接受卡片与描述类字段，`logged_at` / `input_source` 不可改；写入经 `withAuditForUpdate`。完成判据：单测断言传入的时间字段被忽略、`created_at` 不变、`updated_at` 刷新
-- [ ] 4.4 `workout_log/remove`：软删除。完成判据：单测断言 `deleted_at` 被写入、`list` 不再返回、导出不含它
-- [ ] 4.5 `workout_log/purge_expired`：按 `retentionCutoff` 取上界之前的记录主键交给 `purge`。完成判据：单测断言 181 天前被删、179 天前保留、无超期时 `pending_ops` 不新增
-- [ ] 4.6 四条命令登记进 `COMMANDS`。完成判据：单测断言命令类型唯一，每种命令执行后 `pending_ops` 恰增一条（清理无超期时除外）
+- [x] 4.1 `workout_log/create`：载荷为卡片数组，写入前跑项目卡片校验，`logged_at` 取总线算好的时刻，`input_source` 为 `manual`。完成判据：单测断言空数组被拒、项目名缺失被拒、合法载荷落库且 `pending_ops` 恰增一条
+- [x] 4.2 同一 `client_id` 再次提交不产生第二条记录。完成判据：单测断言连续两次相同 `client_id` 的提交后库里只有一条
+- [x] 4.3 `workout_log/update`：只接受卡片与描述类字段，`logged_at` / `input_source` 不可改；写入经 `withAuditForUpdate`。完成判据：单测断言传入的时间字段被忽略、`created_at` 不变、`updated_at` 刷新
+- [x] 4.4 `workout_log/remove`：软删除。完成判据：单测断言 `deleted_at` 被写入、`list` 不再返回、导出不含它
+- [x] 4.5 `workout_log/purge_expired`：按 `retentionCutoff` 取上界之前的记录主键交给 `purge`。完成判据：单测断言 181 天前被删、179 天前保留、无超期时 `pending_ops` 不新增
+- [x] 4.6 四条命令登记进 `COMMANDS`。完成判据：单测断言命令类型唯一，每种命令执行后 `pending_ops` 恰增一条（清理无超期时除外）
 
 ## 5. 运动模块界面
 

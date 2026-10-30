@@ -15,6 +15,12 @@ import { grantConsent, markExported } from './appMeta.ts'
 import { createCommandBus } from './bus.ts'
 import { clearAllData, importSnapshot } from './data.ts'
 import type { CommandDefinition } from './types.ts'
+import {
+  createWorkoutLog,
+  purgeExpiredWorkoutLogs,
+  removeWorkoutLog,
+  updateWorkoutLog,
+} from './workoutLog.ts'
 
 /**
  * 应用的全部命令定义。
@@ -27,6 +33,10 @@ export const COMMANDS: readonly CommandDefinition<never, unknown>[] = [
   grantConsent as CommandDefinition<never, unknown>,
   importSnapshot as CommandDefinition<never, unknown>,
   clearAllData as CommandDefinition<never, unknown>,
+  createWorkoutLog as CommandDefinition<never, unknown>,
+  updateWorkoutLog as CommandDefinition<never, unknown>,
+  removeWorkoutLog as CommandDefinition<never, unknown>,
+  purgeExpiredWorkoutLogs as CommandDefinition<never, unknown>,
 ]
 
 const bus = createCommandBus({ definitions: COMMANDS })

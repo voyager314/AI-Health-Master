@@ -78,6 +78,13 @@ export interface CommandTransactionOptions {
    * 而这条命令本身也不需要在云端重放。只有「整库替换」这一类命令该用它。
    */
   readonly skipOpLog?: boolean
+  /**
+   * 处理器跑完之后决定这次要不要留下日志。省略则一律留下。
+   *
+   * 回调在业务写入完成之后、写日志之前调用，因此它能看到这次执行的真实结果，
+   * 而不是凭载荷猜测。「成功但什么都没写」的命令靠它免掉一条凭空的操作历史。
+   */
+  shouldLog?(result: unknown): boolean
   readonly getDb?: DbProvider
 }
 
@@ -127,7 +134,9 @@ export async function runCommandTransaction<T>(
 
   try {
     const result = await run(handle, bulk)
-    if (op) await tx.objectStore('pending_ops').put(op)
+    if (op && (options.shouldLog?.(result) ?? true)) {
+      await tx.objectStore('pending_ops').put(op)
+    }
     await tx.done
     return result
   } catch (error) {
