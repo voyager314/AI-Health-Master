@@ -107,7 +107,7 @@ export function daySummary(logs: readonly WorkoutLog[]): DaySummary {
  * 仍然只算一项，否则记录写得越长这个值越大，跨记录不可比。调用方用 `> 0`
  * 判断这条记录是否含指标。
  */
-export function filledMetricKinds(log: WorkoutLog): number {
+export function filledMetricKinds(log: Pick<WorkoutLog, 'items'>): number {
   let sets = false
   let reps = false
   let weight = false

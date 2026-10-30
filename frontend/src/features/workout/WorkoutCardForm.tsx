@@ -11,9 +11,11 @@
  */
 import type { WorkoutItem, ValidationIssue } from '@/entities'
 import { validateWorkoutItems } from '@/entities'
+import { filledMetricKinds } from '@/domain'
 import { Button } from '@/shared'
 import { StorageWriteError } from '@/commands'
-import { useState, type FormEvent } from 'react'
+import { trackItemChange, trackRecordSave } from '@/telemetry'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { v7 as uuidv7 } from 'uuid'
 
 /** 一张卡片的编辑态。数值字段保持字符串，提交时才换算成数值或 null */
@@ -81,13 +83,29 @@ export interface WorkoutCardFormProps {
    * 提交一组已换算好的卡片。失败时抛错，由本组件呈现失败提示与两个出口。
    */
   readonly onSave: (items: WorkoutItem[]) => Promise<void>
+  /**
+   * 这条记录的录入来源，只用于埋点。编辑页传入记录自身的来源：
+   * 改一条语音记录时它仍然是语音记录，按编辑页的「手动」上报会让语音占比失真。
+   */
+  readonly inputSource?: 'manual' | 'voice'
 }
 
-export function WorkoutCardForm({ initialItems, saveLabel, onSave }: WorkoutCardFormProps) {
+export function WorkoutCardForm({
+  initialItems,
+  saveLabel,
+  onSave,
+  inputSource = 'manual',
+}: WorkoutCardFormProps) {
   const [drafts, setDrafts] = useState<CardDraft[]>(() => toDrafts(initialItems))
   const [saving, setSaving] = useState(false)
   const [issues, setIssues] = useState<Map<number, ValidationIssue[]>>(new Map())
   const [failure, setFailure] = useState<string | null>(null)
+  // 表单挂载的时刻：耗时从用户看到这张表单算起，而不是从点击保存算起。
+  // 必须在渲染之后取——渲染期间读时钟会让同一次渲染的结果不可重现
+  const openedAt = useRef<number | null>(null)
+  useEffect(() => {
+    openedAt.current = Date.now()
+  }, [])
 
   function update(index: number, patch: Partial<CardDraft>) {
     setDrafts((current) =>
@@ -96,8 +114,17 @@ export function WorkoutCardForm({ initialItems, saveLabel, onSave }: WorkoutCard
   }
 
   function removeCard(index: number) {
-    setDrafts((current) => current.filter((_, i) => i !== index))
+    const next = drafts.filter((_, i) => i !== index)
+    setDrafts(next)
     setIssues(new Map())
+    // 埋点的结果与业务无关，连失败都不该冒泡成一个未处理的拒绝
+    void trackItemChange({ action: 'remove', items: next.length }).catch(() => undefined)
+  }
+
+  function addCard() {
+    const next = [...drafts, emptyDraft()]
+    setDrafts(next)
+    void trackItemChange({ action: 'add', items: next.length }).catch(() => undefined)
   }
 
   async function submit(event?: FormEvent) {
@@ -119,9 +146,19 @@ export function WorkoutCardForm({ initialItems, saveLabel, onSave }: WorkoutCard
       await onSave(items)
     } catch (error) {
       setFailure(failureMessage(error))
+      return
     } finally {
       setSaving(false)
     }
+
+    // 埋在成功之后：失败的提交没有保存任何东西，记一条只会让「保存了几次」这个数虚高。
+    // 结果不参与任何判断，失败也不能冒泡到界面
+    void trackRecordSave({
+      input_source: inputSource,
+      items: items.length,
+      metric_kinds: filledMetricKinds({ items }),
+      duration_ms: openedAt.current === null ? 0 : Date.now() - openedAt.current,
+    }).catch(() => undefined)
   }
 
   return (
@@ -213,9 +250,7 @@ export function WorkoutCardForm({ initialItems, saveLabel, onSave }: WorkoutCard
         </fieldset>
       ))}
 
-      <Button onClick={() => setDrafts((current) => [...current, emptyDraft()])}>
-        添加一项
-      </Button>
+      <Button onClick={addCard}>添加一项</Button>
 
       {failure ? (
         <div className="stack">

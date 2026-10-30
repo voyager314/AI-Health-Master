@@ -121,6 +121,7 @@ export function WorkoutEditorPage() {
       <WorkoutCardForm
         initialItems={log.items}
         saveLabel="保存修改"
+        inputSource={log.input_source}
         onSave={async (items) => {
           await applyCommand('workout_log/update', { client_id: log.client_id, items })
           navigate('/workout')

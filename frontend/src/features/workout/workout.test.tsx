@@ -15,7 +15,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { aWorkoutLog } from '@/test/fixtures.ts'
 import { makeRecord, momentAt } from '@/test/records.ts'
-import { defaultRepositories, resetDefaultDatabase } from '@/test/seed.ts'
+import { defaultRepositories, readDefaultEvents, resetDefaultDatabase } from '@/test/seed.ts'
 
 import { itemTextOf } from './itemText.ts'
 import { WorkoutCardForm } from './WorkoutCardForm.tsx'
@@ -400,6 +400,94 @@ describe('断网', () => {
     })
 
     spy.mockRestore()
+  })
+})
+
+describe('埋点', () => {
+  /** 等到事件落库；埋点是异步写入的，界面已经切走时它可能还在路上 */
+  async function eventNamed(name: string) {
+    await waitFor(async () => {
+      const events = await readDefaultEvents()
+      expect(events.some((e) => e.name === name)).toBe(true)
+    })
+    const events = await readDefaultEvents()
+    return events.filter((e) => e.name === name)
+  }
+
+  it('添加与删除卡片各产生一条事件，属性是操作后的卡片数', async () => {
+    renderEditor('/workout/new')
+
+    fireEvent.click(await screen.findByRole('button', { name: '添加一项' }))
+    fireEvent.click(screen.getAllByRole('button', { name: '删除这一项' })[1]!)
+
+    const added = await eventNamed('item_add')
+    const removed = await eventNamed('item_remove')
+    expect(added).toHaveLength(1)
+    expect(added[0]?.props.items).toBe(2)
+    expect(removed[0]?.props.items).toBe(1)
+  })
+
+  it('保存成功后产生一条保存事件，属性齐备', async () => {
+    renderEditor('/workout/new')
+
+    const form = screen.getByRole('form')
+    fireEvent.change(within(form).getByLabelText('项目名'), { target: { value: '卧推' } })
+    fireEvent.change(within(form).getByLabelText('组数'), { target: { value: '4' } })
+    fireEvent.change(within(form).getByLabelText('每组次数'), { target: { value: '8' } })
+    fireEvent.change(within(form).getByLabelText('重量（kg）'), { target: { value: '80' } })
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+
+    const [saved] = await eventNamed('record_save')
+    expect(saved?.props.input_source).toBe('manual')
+    expect(saved?.props.items).toBe(1)
+    expect(saved?.props.metric_kinds).toBe(3)
+    expect(typeof saved?.props.duration_ms).toBe('number')
+  })
+
+  it('只有项目名时已填指标数为 0', async () => {
+    renderEditor('/workout/new')
+
+    fireEvent.change(screen.getByLabelText('项目名'), { target: { value: '卧推' } })
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+
+    const [saved] = await eventNamed('record_save')
+    expect(saved?.props.metric_kinds).toBe(0)
+  })
+
+  it('属性不含项目名、备注与具体数值', async () => {
+    renderEditor('/workout/new')
+
+    const form = screen.getByRole('form')
+    fireEvent.change(within(form).getByLabelText('项目名'), {
+      target: { value: '右肩不舒服的卧推' },
+    })
+    fireEvent.change(within(form).getByLabelText('描述'), {
+      target: { value: '今天肩有点紧，降了重量' },
+    })
+    fireEvent.change(within(form).getByLabelText('重量（kg）'), { target: { value: '77.5' } })
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+
+    const [saved] = await eventNamed('record_save')
+    const serialized = JSON.stringify(saved?.props)
+    expect(serialized).not.toContain('卧推')
+    expect(serialized).not.toContain('肩有点紧')
+    expect(serialized).not.toContain('77.5')
+    // 属性名本身也不该暗示自由文本或具体数值
+    expect(Object.keys(saved?.props ?? {})).toEqual([
+      'input_source',
+      'items',
+      'metric_kinds',
+      'duration_ms',
+    ])
+  })
+
+  it('展开记录的是目标天数', async () => {
+    renderList()
+
+    fireEvent.click(await screen.findByRole('button', { name: /近 60 天/ }))
+
+    const [expanded] = await eventNamed('history_expand')
+    expect(expanded?.props.days).toBe(60)
   })
 })
 

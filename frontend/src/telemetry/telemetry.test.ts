@@ -5,7 +5,14 @@
  * 第三条尤其重要——埋点是最容易在「顺手多记一个字段」中慢慢越界的地方，
  * 等到发现时历史数据已经收完了。
  */
-import { trackAppOpen, trackClearData, trackExport } from '@/telemetry'
+import {
+  trackAppOpen,
+  trackClearData,
+  trackExport,
+  trackHistoryExpand,
+  trackItemChange,
+  trackRecordSave,
+} from '@/telemetry'
 import { createTestDb, type TestDb } from '@/test/db.ts'
 import { fixedDate } from '@/test/fixtures.ts'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -70,6 +77,44 @@ describe('事件落库', () => {
     expect(event?.props.records).toBe(128)
   })
 
+  it('保存事件记录来源、项目数、指标种类数与耗时', async () => {
+    await trackRecordSave({
+      input_source: 'manual',
+      items: 2,
+      metric_kinds: 3,
+      duration_ms: 42_000,
+      ...deps(),
+    })
+
+    const [event] = await events()
+    expect(event?.name).toBe('record_save')
+    expect(event?.props).toEqual({
+      input_source: 'manual',
+      items: 2,
+      metric_kinds: 3,
+      duration_ms: 42_000,
+    })
+  })
+
+  it('增删卡片各自记录，属性是操作后的卡片数', async () => {
+    await trackItemChange({ action: 'add', items: 2, ...deps() })
+    await trackItemChange({ action: 'remove', items: 1, ...deps() })
+
+    const [added, removed] = await events()
+    expect(added?.name).toBe('item_add')
+    expect(added?.props.items).toBe(2)
+    expect(removed?.name).toBe('item_remove')
+    expect(removed?.props.items).toBe(1)
+  })
+
+  it('展开事件记录目标天数', async () => {
+    await trackHistoryExpand({ days: 60, ...deps() })
+
+    const [event] = await events()
+    expect(event?.name).toBe('history_expand')
+    expect(event?.props.days).toBe(60)
+  })
+
   it('每条事件有独立主键', async () => {
     await trackAppOpen({ pwa: false, ...deps() })
     await trackAppOpen({ pwa: false, ...deps() })
@@ -91,6 +136,17 @@ describe('失败不影响业务', () => {
     await expect(trackAppOpen({ pwa: false, ...failing })).resolves.toBeUndefined()
     await expect(trackExport({ format: 'json', files: 1, ...failing })).resolves.toBeUndefined()
     await expect(trackClearData({ records: 0, ...failing })).resolves.toBeUndefined()
+    await expect(
+      trackRecordSave({
+        input_source: 'manual',
+        items: 1,
+        metric_kinds: 0,
+        duration_ms: 1,
+        ...failing,
+      }),
+    ).resolves.toBeUndefined()
+    await expect(trackItemChange({ action: 'add', items: 1, ...failing })).resolves.toBeUndefined()
+    await expect(trackHistoryExpand({ days: 90, ...failing })).resolves.toBeUndefined()
   })
 
   it('写入失败后数据库未被改动，可继续正常使用', async () => {
@@ -142,6 +198,66 @@ describe('隐私边界', () => {
     const [event] = await events()
     const keys = Object.keys(event!.props).map((k) => k.toLowerCase())
     expect(keys.some((k) => /weight|kg|tonnage|protein/.test(k))).toBe(false)
+  })
+})
+
+/**
+ * 属性清单。
+ *
+ * 逐事件把允许出现的属性名写死在这里，新增一个属性会先让这条断言失败，
+ * 而审阅一条失败断言的成本远低于事后清理已经收上来的历史数据。
+ *
+ * | 事件             | 允许的属性                                              |
+ * | ---------------- | ------------------------------------------------------- |
+ * | `record_save`    | `input_source`、`items`、`metric_kinds`、`duration_ms`   |
+ * | `item_add`       | `items`                                                  |
+ * | `item_remove`    | `items`                                                  |
+ * | `history_expand` | `days`                                                   |
+ */
+describe('属性清单', () => {
+  it('四个事件只带清单内的属性', async () => {
+    await trackRecordSave({
+      input_source: 'manual',
+      items: 2,
+      metric_kinds: 3,
+      duration_ms: 1000,
+      ...deps(),
+    })
+    await trackItemChange({ action: 'add', items: 2, ...deps() })
+    await trackItemChange({ action: 'remove', items: 1, ...deps() })
+    await trackHistoryExpand({ days: 60, ...deps() })
+
+    const allowed: Record<string, readonly string[]> = {
+      record_save: ['input_source', 'items', 'metric_kinds', 'duration_ms'],
+      item_add: ['items'],
+      item_remove: ['items'],
+      history_expand: ['days'],
+    }
+
+    for (const event of await events()) {
+      const keys = Object.keys(event.props).sort()
+      expect(keys, event.name).toEqual([...(allowed[event.name] ?? [])].sort())
+    }
+  })
+
+  it('清单里的每个事件都实际写入了', async () => {
+    await trackRecordSave({
+      input_source: 'manual',
+      items: 1,
+      metric_kinds: 0,
+      duration_ms: 1,
+      ...deps(),
+    })
+    await trackItemChange({ action: 'add', items: 1, ...deps() })
+    await trackItemChange({ action: 'remove', items: 0, ...deps() })
+    await trackHistoryExpand({ days: 90, ...deps() })
+
+    expect((await events()).map((e) => e.name)).toEqual([
+      'record_save',
+      'item_add',
+      'item_remove',
+      'history_expand',
+    ])
   })
 })
 

@@ -9,6 +9,7 @@ import { daySummary, groupByDay } from '@/domain'
 import { Button, EmptyState, Skeleton } from '@/shared'
 import { clockTimeOf, recentDayInterval } from '@/stats'
 import { createNow, workoutLogRepo, type Now } from '@/storage'
+import { trackHistoryExpand } from '@/telemetry'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 
@@ -58,6 +59,8 @@ export function WorkoutListPage() {
   function showWindow(next: number) {
     setLoad({ status: 'loading' })
     setDays(next)
+    // 记展开之后的档位而不是增量：30/60/90/180 直接回答「最多会翻多久以前」
+    void trackHistoryExpand({ days: next })
   }
 
   const nextWindow = WINDOWS[WINDOWS.indexOf(days as (typeof WINDOWS)[number]) + 1]

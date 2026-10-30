@@ -7,7 +7,7 @@
  * 放在测试层：业务层与界面层的代码都不允许够到存储实现，测试的准备工作集中在此，
  * 那条边界才不必为测试开口子。
  */
-import type { PendingOp } from '@/entities'
+import type { AnalyticsEvent, PendingOp } from '@/entities'
 import { closeDatabase, openDatabase } from '@/storage/indexeddb/db.ts'
 import { createRepositories } from '@/storage/repositories/index.ts'
 import type { RepositorySet } from '@/storage/repositories/types.ts'
@@ -46,11 +46,28 @@ export async function readDefaultPendingOps(): Promise<readonly PendingOp[]> {
   return db.getAll('pending_ops')
 }
 
-/** 清空默认数据库并释放连接，供用例之间互不干扰 */
+/** 读默认数据库的埋点事件，供界面测试断言「操作之后产生了哪个事件、带了什么属性」 */
+export async function readDefaultEvents(): Promise<readonly AnalyticsEvent[]> {
+  const db = await openDatabase()
+  return db.getAll('analytics_event')
+}
+
+/**
+ * 清空默认数据库并释放连接，供用例之间互不干扰。
+ *
+ * 连非业务 store 一并清：写操作日志与埋点事件同样会累积，只清业务表会让
+ * 「这次操作产生了几条日志/事件」这类断言读到上一个用例的残留。
+ */
 export async function resetDefaultDatabase(): Promise<void> {
   const repos = defaultRepositories()
   for (const name of Object.keys(repos) as (keyof RepositorySet)[]) {
     await repos[name].clear()
   }
+
+  const db = await openDatabase()
+  for (const name of db.objectStoreNames) {
+    await db.clear(name)
+  }
+
   closeDatabase()
 }

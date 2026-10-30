@@ -84,3 +84,60 @@ export function trackClearData(props: {
 } & TrackDeps): Promise<void> {
   return track('clear_data', { records: props.records }, props)
 }
+
+/**
+ * 保存一条运动记录。
+ *
+ * 只记结构化量与区间量：录入来源、项目数、已填指标种类数（0-3）与从打开表单到
+ * 提交的耗时。项目名、描述与具体重量次数都不出现——它们既是自由文本，
+ * 也是能反推出某个人训练内容的具体数值。
+ */
+export function trackRecordSave(props: {
+  /** 手动填写还是语音提交 */
+  readonly input_source: 'manual' | 'voice'
+  /** 这条记录里的项目卡片数 */
+  readonly items: number
+  /** 三项基础指标里有几项在任意一张卡片上填了值，0-3 */
+  readonly metric_kinds: number
+  /** 从页面打开到点击保存的毫秒数。用来判断记录这件事有没有真的「一句话就能完成」 */
+  readonly duration_ms: number
+} & TrackDeps): Promise<void> {
+  return track(
+    'record_save',
+    {
+      input_source: props.input_source,
+      items: props.items,
+      metric_kinds: props.metric_kinds,
+      duration_ms: props.duration_ms,
+    },
+    props,
+  )
+}
+
+/**
+ * 新增或删除一张卡片。
+ *
+ * 两者都只记操作之后这条记录的卡片数：单独记增删次数无法区分「一次加了五张」
+ * 与「反复加删」，而后者才是真正需要被看见的输入摩擦。
+ */
+export function trackItemChange(props: {
+  readonly action: 'add' | 'remove'
+  /** 操作之后该记录的卡片数 */
+  readonly items: number
+} & TrackDeps): Promise<void> {
+  const name = props.action === 'add' ? 'item_add' : 'item_remove'
+  return track(name, { items: props.items }, props)
+}
+
+/**
+ * 点「查看更早」。
+ *
+ * 记的是展开之后的**目标天数**而不是增量：30/60/90/180 这组取值直接对应
+ * 「用户最多会翻多久以前」，增量还要再累加一次才能回答同一个问题。
+ */
+export function trackHistoryExpand(props: {
+  /** 展开之后的目标天数 */
+  readonly days: number
+} & TrackDeps): Promise<void> {
+  return track('history_expand', { days: props.days }, props)
+}

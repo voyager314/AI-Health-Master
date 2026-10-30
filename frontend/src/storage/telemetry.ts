@@ -17,7 +17,14 @@ import { getDatabase, type DbProvider } from './indexeddb/db.ts'
 import { assertValidRecord, createNow, LOCAL_USER_ID, type Now } from './indexeddb/write.ts'
 
 /** 事件名。新增事件时在此处登记，便于审阅它们的属性是否越过隐私边界 */
-export type TelemetryEventName = 'app_open' | 'export' | 'clear_data'
+export type TelemetryEventName =
+  | 'app_open'
+  | 'export'
+  | 'clear_data'
+  | 'record_save'
+  | 'item_add'
+  | 'item_remove'
+  | 'history_expand'
 
 /**
  * 追加一条事件。
