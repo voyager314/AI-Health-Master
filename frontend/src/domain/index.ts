@@ -18,11 +18,25 @@ export type { ExportableSnapshot, ExportFile } from './export.ts'
 export { ImportValidationError, parseImportFile } from './import.ts'
 export type { ImportOptions, ParsedImport, RecordUpgrade } from './import.ts'
 
+export { groupByDayBy } from './dayGroups.ts'
+export type { DatedRecord, DayGroup, DayInstant } from './dayGroups.ts'
+
 export {
   SUMMARY_NAME_MAX_LENGTH,
   daySummary,
   filledMetricKinds,
   groupByDay,
 } from './workoutLog.ts'
-export type { DayGroup, DaySummary } from './workoutLog.ts'
+export type { DaySummary, WorkoutDayGroup } from './workoutLog.ts'
 
+
+export {
+  MIN_VALID_DAYS_PER_WEEK,
+  dayValues,
+  jinToKg,
+  kgToJin,
+  normalizeKg,
+  stepKg,
+  weeklyAverages,
+} from './bodyMetric.ts'
+export type { DayValue, WeekAverage } from './bodyMetric.ts'
