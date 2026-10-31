@@ -11,13 +11,13 @@
  */
 import type { WorkoutLog } from '@/entities'
 import { applyCommand } from '@/commands'
-import { clockTimeOf } from '@/stats'
+import { clockTimeOf, dayKeyOf } from '@/stats'
 import { workoutLogRepo } from '@/storage'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { v7 as uuidv7 } from 'uuid'
 
-import { Button, EmptyState, Skeleton } from '@/shared'
+import { Button, EmptyState, Skeleton, dayLabel } from '@/shared'
 
 import { WorkoutCardForm } from './WorkoutCardForm.tsx'
 
@@ -109,7 +109,9 @@ export function WorkoutEditorPage() {
         <div className="meta__item">
           <dt>训练时间</dt>
           <dd>
-            {log.logged_at.slice(0, 10)} {clockTimeOf(log.logged_at, log.tz_offset_minutes)}
+            {/* 日期与时刻都由记录自带的偏移换算：取 UTC 日期会与列表的分组差一天 */}
+            {dayLabel(dayKeyOf(log.logged_at, log.tz_offset_minutes))}{' '}
+            {clockTimeOf(log.logged_at, log.tz_offset_minutes)}
           </dd>
         </div>
         <div className="meta__item">

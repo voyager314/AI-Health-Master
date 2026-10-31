@@ -9,6 +9,8 @@
  */
 import type { WorkoutItem } from '@/entities'
 import { applyCommand, StorageWriteError } from '@/commands'
+import { dayLabel } from '@/shared'
+import { clockTimeOf, dayKeyOf } from '@/stats'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -307,6 +309,28 @@ describe('编辑页', () => {
     const after = await defaultRepositories().workout_log.get(id)
     expect(after?.items[0]?.sets).toBe(5)
     expect(after?.created_at).toBe(before?.created_at)
+  })
+
+  it('训练日期按记录自带的偏移取自然日，而不是 UTC 日期', async () => {
+    // 东八区本地 07:30 写入：对应的 UTC 日期是前一天。取日志的前 10 个字符会显示成昨天
+    const repos = defaultRepositories()
+    const record = makeRecord(
+      'workout_log',
+      aWorkoutLog({ logged_at: '2026-10-30T23:30:00.000Z' }),
+      momentAt('2026-10-30T23:30:00.000Z', 480),
+    )
+    await repos.workout_log.put(record)
+
+    renderEditor(`/workout/${record.id}`)
+
+    expect(await screen.findByText('训练时间')).toBeTruthy()
+    const localDay = dayKeyOf(record.logged_at, record.tz_offset_minutes)
+    expect(localDay).toBe('2026-10-31')
+    expect(
+      screen.getByText(
+        `${dayLabel(localDay)} ${clockTimeOf(record.logged_at, record.tz_offset_minutes)}`,
+      ),
+    ).toBeTruthy()
   })
 
   it('记录不存在时说明情况，不给编辑入口', async () => {
