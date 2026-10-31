@@ -31,6 +31,8 @@ export type FieldRule =
   | { readonly type: 'string'; readonly maxLength?: number; readonly allowEmpty?: boolean }
   | { readonly type: 'int'; readonly min?: number; readonly max?: number }
   | { readonly type: 'number'; readonly min?: number; readonly max?: number }
+  /** 体重：范围内的 kg 值，且落在 0.1 kg 网格上 */
+  | { readonly type: 'weightKg' }
   | { readonly type: 'enum'; readonly values: readonly string[] }
   /** 任意可序列化值，仅用于 pending_ops.payload */
   | { readonly type: 'json' }
@@ -64,6 +66,25 @@ export const ITEM_NAME_MAX_LENGTH = 40
 
 /** 项目描述长度上限，字 */
 export const ITEM_NOTE_MAX_LENGTH = 200
+
+/** 体重允许的取值下界，kg。界面的范围提示与字段规格共用它 */
+export const BODY_WEIGHT_MIN_KG = 1
+
+/** 体重允许的取值上界，kg */
+export const BODY_WEIGHT_MAX_KG = 500
+
+/**
+ * 体重是否落在 0.1 kg 网格上。
+ *
+ * 用乘以 10 后是否为整数判断。范围内每个由「整数 ÷ 10」得到的网格值都满足，而在
+ * 0.1 上反复累加得到的近似值（如 70.19999999999999）不满足——这类值能通过范围
+ * 校验，却会以「一位小数」以外的形态流进存储与导出。
+ *
+ * 调用方负责在提交前把值规整到网格；本函数只判定，不改写传入的值。
+ */
+export function isBodyWeightOnGrid(value: number): boolean {
+  return Number.isInteger(value * 10)
+}
 
 /**
  * 重量是否落在 0.5 kg 的网格上。
@@ -183,6 +204,15 @@ function checkRule(rule: FieldRule, value: unknown): string | null {
       if (typeof value !== 'number' || !Number.isFinite(value)) return '应为有限数值'
       if (rule.min !== undefined && value < rule.min) return `不能小于 ${rule.min}`
       if (rule.max !== undefined && value > rule.max) return `不能大于 ${rule.max}`
+      return null
+    }
+
+    case 'weightKg': {
+      if (typeof value !== 'number' || !Number.isFinite(value)) return '应为有限数值'
+      if (value < BODY_WEIGHT_MIN_KG || value > BODY_WEIGHT_MAX_KG) {
+        return `应为 ${BODY_WEIGHT_MIN_KG}–${BODY_WEIGHT_MAX_KG} kg`
+      }
+      if (!isBodyWeightOnGrid(value)) return '至多一位小数（步进 0.1 kg）'
       return null
     }
 
@@ -308,7 +338,7 @@ export const RECORD_SPECS: Readonly<Record<StoreName, RecordSpec>> = {
   body_metric: {
     ...AUDIT_SPEC,
     measured_at: f({ type: 'isoUtc' }),
-    weight_kg: f({ type: 'number', min: 1, max: 500 }),
+    weight_kg: f({ type: 'weightKg' }),
     note: f({ type: 'string', maxLength: 200, allowEmpty: true }, true),
   },
 

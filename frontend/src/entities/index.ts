@@ -57,9 +57,12 @@ export type {
 
 export {
   AUDIT_SPEC,
+  BODY_WEIGHT_MAX_KG,
+  BODY_WEIGHT_MIN_KG,
   ITEM_NAME_MAX_LENGTH,
   ITEM_NOTE_MAX_LENGTH,
   RECORD_SPECS,
+  isBodyWeightOnGrid,
   validateRecord,
   validateWorkoutItems,
 } from './validation.ts'

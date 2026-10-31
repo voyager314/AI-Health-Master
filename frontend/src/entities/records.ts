@@ -57,10 +57,24 @@ export interface WorkoutLog extends AuditFields {
   items: WorkoutItem[]
 }
 
+/**
+ * 一次体重记录。
+ *
+ * 同一天允许多条：当日取测量时刻最晚的一条，其余记录保留在明细里可查。
+ */
 export interface BodyMetric extends AuditFields {
+  /**
+   * 测量时刻，即用户按下记录那一刻的设备本地时刻，精确到秒。
+   * 按 UTC ISO 8601 存储，由程序写入，用户不可编辑；归属哪一天按本记录自带的
+   * `tz_offset_minutes` 判定，不按设备当前时区。
+   */
   measured_at: IsoUtc
-  /** 统一以 kg 存储。界面可切换为斤，只影响显示，不改存储值 */
+  /**
+   * 体重，单位 kg，取值 1–500，且落在 0.1 kg 网格上（至多一位小数）。
+   * 界面可切换为斤显示，1 斤 = 0.5 kg，换算只影响显示，不改存储值。
+   */
   weight_kg: number
+  /** 备注，不超过 200 字。`null` 表示未填；体重记录目前一律写入 `null` */
   note: string | null
 }
 

@@ -12,7 +12,7 @@ import {
 } from '@/entities'
 import { closeDatabase, openDatabase } from '@/storage/indexeddb/db.ts'
 import { BUSINESS_STORES, STORES } from '@/storage/indexeddb/schema.ts'
-import { aWorkoutLog, uniqueDbName } from '@/test/fixtures.ts'
+import { aBodyMetric, aWorkoutLog, uniqueDbName } from '@/test/fixtures.ts'
 import { createNow, withAuditForCreate } from '@/storage/indexeddb/write.ts'
 import { afterEach, describe, expect, it } from 'vitest'
 
@@ -156,5 +156,39 @@ describe('运动记录的项目卡片', () => {
     expect(found).toHaveLength(1)
     expect(found[0]?.items[0]?.name).toBe('杠铃卧推')
     db.close()
+  })
+})
+
+describe('体重记录的字段规格', () => {
+  function checkWeight(weight_kg: number) {
+    const record = withAuditForCreate('body_metric', aBodyMetric({ weight_kg }), createNow())
+    return validateRecord(RECORD_SPECS.body_metric, record)
+  }
+
+  it('一位小数的体重通过校验', () => {
+    expect(checkWeight(72.4)).toEqual([])
+    expect(checkWeight(1)).toEqual([])
+    expect(checkWeight(500)).toEqual([])
+  })
+
+  it('离网格的体重被拒绝', () => {
+    const issues = checkWeight(72.45)
+
+    expect(issues).toHaveLength(1)
+    expect(issues[0]?.field).toBe('weight_kg')
+    expect(issues[0]?.message).toContain('一位小数')
+  })
+
+  it('浮点累加得到的近似值被拒绝', () => {
+    // 从 70.0 连续加 0.1 得到的第一个值，界面上看着是 70.2
+    expect(checkWeight(70.19999999999999)[0]?.field).toBe('weight_kg')
+  })
+
+  it('超出取值范围的体重被拒绝', () => {
+    for (const weight of [0.5, 500.1]) {
+      const issues = checkWeight(weight)
+      expect(issues[0]?.field).toBe('weight_kg')
+      expect(issues[0]?.message).toContain('1–500')
+    }
   })
 })

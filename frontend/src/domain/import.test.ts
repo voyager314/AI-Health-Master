@@ -163,6 +163,22 @@ describe('记录级拒绝', () => {
     ])
   })
 
+  it('离网格的体重使整个文件被拒，并定位到那一条', () => {
+    const error = (() => {
+      try {
+        parseImportFile(validFile({ body_metric: [{ ...oneWeight, weight_kg: 72.45 }] }), {
+          targetVersion: 1,
+        })
+      } catch (e) {
+        return e
+      }
+    })()
+
+    expect((error as ImportValidationError).issues).toEqual([
+      { field: 'records.body_metric[0].weight_kg', message: '至多一位小数（步进 0.1 kg）' },
+    ])
+  })
+
   it('一次报出全部问题，不是遇到第一个就停', () => {
     const bad = [
       { ...oneWeight, weight_kg: 'x' },
