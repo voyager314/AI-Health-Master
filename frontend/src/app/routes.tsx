@@ -10,6 +10,7 @@
 import type { ReactElement } from 'react'
 
 import { PlaceholderPage } from '@/features/placeholder'
+import { WeightEditorPage, WeightPage } from '@/features/weight'
 import { WorkoutEditorPage, WorkoutListPage } from '@/features/workout'
 
 import { DataPage } from './DataPage.tsx'
@@ -40,7 +41,8 @@ export const routeElements: readonly RouteEntry[] = [
   { path: '/workout', element: <WorkoutListPage /> },
   { path: '/workout/new', element: <WorkoutEditorPage /> },
   { path: '/workout/:id', element: <WorkoutEditorPage /> },
-  { path: '/weight', element: <PlaceholderPage title="体重趋势" /> },
+  { path: '/weight', element: <WeightPage /> },
+  { path: '/weight/:id', element: <WeightEditorPage /> },
   { path: '/meal', element: <PlaceholderPage title="饮食记录" /> },
   { path: '/settings', element: <SettingsPage /> },
   { path: '/settings/data', element: <DataPage /> },

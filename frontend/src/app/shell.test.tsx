@@ -58,6 +58,21 @@ describe('路由', () => {
     expect(screen.getByText('这个功能还没有上线。')).toBeTruthy()
   })
 
+  it('从底部导航进入体重页时以 kg 显示', async () => {
+    renderAt('/weight')
+
+    expect(await screen.findByRole('heading', { name: '体重' })).toBeTruthy()
+    expect((screen.getByLabelText('体重') as HTMLInputElement).value).not.toContain('斤')
+    expect(screen.getByRole('button', { name: '斤' }).getAttribute('aria-pressed')).toBe('false')
+  })
+
+  it('体重记录的编辑页可以直达', async () => {
+    renderAt('/weight/01a182ae-25f7-7661-b587-84998ff6f6df')
+
+    expect(await screen.findByRole('heading', { name: '编辑体重' })).toBeTruthy()
+    expect(await screen.findByText(/这条记录不存在/)).toBeTruthy()
+  })
+
   it('未定义的地址才落到 404', () => {
     renderAt('/no-such-page')
 

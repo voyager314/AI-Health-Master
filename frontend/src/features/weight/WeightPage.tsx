@@ -7,7 +7,7 @@
  * 记录入口吸附在屏幕下三分之一：图表与明细一长，放在页面顶部就要先滚回去才够得到，
  * 而单手可达是可用性基线。页面内容底部因此留出与入口等高的空白。
  */
-import type { BodyMetric } from '@/entities'
+import type { BodyMetric, WriteFailureReason } from '@/entities'
 import { applyCommand, StorageWriteError } from '@/commands'
 import {
   dayValues,
@@ -17,11 +17,11 @@ import {
   weeklyAverages,
   type WeekAverage,
 } from '@/domain'
-import { EmptyState, Skeleton, dayLabel } from '@/shared'
+import { EmptyState, SaveFailureNotice, Skeleton, dayLabel } from '@/shared'
 import { clockTimeOf, daysBetween, recentWeekInterval, recentWeekKeys } from '@/stats'
 import { bodyMetricRepo, createNow, type Now } from '@/storage'
 import { trackWeightAdd } from '@/telemetry'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { v7 as uuidv7 } from 'uuid'
 
@@ -40,22 +40,20 @@ type Load =
   | { status: 'ready'; records: readonly BodyMetric[] }
   | { status: 'error' }
 
-/** 一次记录尝试的失败原因 */
-type RecordFailure = 'quota_exceeded' | 'constraint' | 'unknown'
-
 export function WeightPage() {
   const navigate = useNavigate()
   const window = useWeightUnit()
   // 取一次「现在」并固定：每次渲染重取会让窗口在同一页面里悄悄移动
-  const now = useRef<Now>(createNow()).current
-  /** 上一条记录的值，用于判断这次记录有没有改预填值 */
-  const prefillRef = useRef<number | null>(null)
+  const [now] = useState<Now>(() => createNow())
+  /** 上一条记录的值：它既是记录入口的初值，也是判断预填值有没有被改的基准 */
+  const [prefill, setPrefill] = useState<number | null>(null)
   // 幂等键在挂载时生成一次，失败重试沿用；成功后换新，否则同页第二次记录会被当成重复提交
   const [clientId, setClientId] = useState(() => uuidv7())
   const [load, setLoad] = useState<Load>({ status: 'loading' })
-  const [draft, setDraft] = useState<number | null>(null)
+  // undefined 表示「用户还没动过」，此时显示预填值；null 表示用户清空了
+  const [draft, setDraft] = useState<number | null | undefined>(undefined)
   const [saving, setSaving] = useState(false)
-  const [failure, setFailure] = useState<RecordFailure | null>(null)
+  const [failure, setFailure] = useState<WriteFailureReason | null>(null)
 
   const read = useCallback(async () => {
     const span = recentWeekInterval(now.iso, now.tzOffsetMinutes, WEEKS)
@@ -78,9 +76,9 @@ export function WeightPage() {
       (records) => {
         if (!alive) return
         setLoad({ status: 'ready', records })
-        const latest = latestRecord(records)
-        prefillRef.current = latest?.weight_kg ?? null
-        setDraft(latest?.weight_kg ?? null)
+        setPrefill(latestRecord(records)?.weight_kg ?? null)
+        // 重新读数后回到「未动过」，让新的预填值生效
+        setDraft(undefined)
       },
       () => {
         if (alive) setLoad({ status: 'error' })
@@ -95,13 +93,13 @@ export function WeightPage() {
 
   const records = load.status === 'ready' ? load.records : []
   const hasRecords = records.some((record) => record.deleted_at === null)
-  const current = draft === null ? prefillRef.current : draft
-  const invalid = draft === null && prefillRef.current === null ? false : current === null
+  const current = draft === undefined ? prefill : draft
+  // 只有用户清空或输出了不可解析的内容才算不合法；还没有预填值时只是「尚未输入」
+  const invalid = draft === null
 
   function record() {
     if (current === null || current < 1 || current > 500 || saving) return
 
-    const prefill = prefillRef.current
     setSaving(true)
     setFailure(null)
 
@@ -109,10 +107,11 @@ export function WeightPage() {
       () => {
         setSaving(false)
         setClientId(uuidv7())
+        // 埋点失败与记录结果无关：记录已经落库，这里只把拒绝接住，不弹任何提示
         void trackWeightAdd({
           prefill: prefill === null ? 'none' : prefill === current ? 'kept' : 'changed',
           unit: window.unit,
-        })
+        }).catch(() => {})
         reload()
       },
       (error: unknown) => {
@@ -158,13 +157,7 @@ export function WeightPage() {
           onChange={setDraft}
         />
         {failure ? (
-          <p className="feedback feedback--error" role="alert">
-            这次没有保存成功。
-            <a href="/settings/data">导出数据</a>
-            <button type="button" onClick={record} disabled={saving}>
-              重试
-            </button>
-          </p>
+          <SaveFailureNotice reason={failure} retrying={saving} onRetry={record} />
         ) : null}
         <button
           type="button"
@@ -230,7 +223,7 @@ function WeightOverview({
 
   return (
     <>
-      <p className="stats__item">
+      <p className="week-status">
         <WeekStatus week={thisWeek} unit={unit} />
       </p>
 

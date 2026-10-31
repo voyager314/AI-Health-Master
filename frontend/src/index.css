@@ -558,3 +558,108 @@ body {
 .chart__day {
   fill: var(--fg-muted);
 }
+
+/* ── 体重记录入口 ───────────────────────────────────────────────────────── */
+
+/* 页面内容为吸底的记录入口留出等高空白，免得明细最后一行被挡住 */
+.page--with-entry {
+  padding-bottom: calc(var(--tap-target-min) * 6);
+}
+
+/*
+ * 记录入口吸附在底部导航之上：屏幕下三分之一是单手拇指容易够到的区域，
+ * 图表与明细再长，也不必滚回顶部才能记录。
+ */
+.entry {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--tap-target-min) + 0.5rem);
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 0.75rem 1rem;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+}
+
+.entry__note {
+  margin: 0;
+  color: var(--fg-muted);
+  font-size: 0.85rem;
+}
+
+.stepper__row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.stepper__units {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.stepper__unit {
+  min-width: var(--tap-target-min);
+  min-height: 2rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+}
+
+.stepper__unit--active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* 加减按钮保持最小触达区域：手指带汗时也要点得中 */
+.stepper__button {
+  flex: none;
+  width: var(--tap-target-min);
+  height: var(--tap-target-min);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--surface-strong);
+  color: var(--fg);
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.stepper__field {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--surface);
+}
+
+.stepper__input {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--tap-target-min);
+  border: 0;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  font-size: 1.5rem;
+  text-align: right;
+}
+
+.stepper__input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.stepper__suffix {
+  color: var(--fg-muted);
+}
