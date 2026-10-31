@@ -518,3 +518,43 @@ body {
   margin: 0.2rem 0 0;
   accent-color: var(--accent);
 }
+
+/* ── 趋势图 ─────────────────────────────────────────────────────────────── */
+
+.chart {
+  margin: 0;
+  padding: 0.5rem 0;
+}
+
+.chart__svg {
+  display: block;
+  width: 100%;
+  aspect-ratio: 2 / 1;
+  overflow: visible;
+}
+
+/* 参考线比折线更淡：它标的是量程，不是数据 */
+.chart__grid {
+  stroke: var(--border);
+  stroke-width: 0.5;
+}
+
+.chart__tick {
+  fill: var(--fg-muted);
+  font-size: 8px;
+}
+
+.chart__line {
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+/* 周均用实心点，当日值是更小的散点：后者数量多，画重了会糊成一片 */
+.chart__week {
+  fill: var(--accent);
+}
+
+.chart__day {
+  fill: var(--fg-muted);
+}

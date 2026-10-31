@@ -35,6 +35,7 @@ export {
   dayValues,
   jinToKg,
   kgToJin,
+  latestRecord,
   normalizeKg,
   stepKg,
   weeklyAverages,
