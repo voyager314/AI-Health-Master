@@ -12,6 +12,7 @@
  * 可被导入：app/、features/
  */
 import { grantConsent, markExported } from './appMeta.ts'
+import { recordBodyMetric, removeBodyMetric, updateBodyMetric } from './bodyMetric.ts'
 import { createCommandBus } from './bus.ts'
 import { clearAllData, importSnapshot } from './data.ts'
 import type { CommandDefinition } from './types.ts'
@@ -37,6 +38,9 @@ export const COMMANDS: readonly CommandDefinition<never, unknown>[] = [
   updateWorkoutLog as CommandDefinition<never, unknown>,
   removeWorkoutLog as CommandDefinition<never, unknown>,
   purgeExpiredWorkoutLogs as CommandDefinition<never, unknown>,
+  recordBodyMetric as CommandDefinition<never, unknown>,
+  updateBodyMetric as CommandDefinition<never, unknown>,
+  removeBodyMetric as CommandDefinition<never, unknown>,
 ]
 
 const bus = createCommandBus({ definitions: COMMANDS })

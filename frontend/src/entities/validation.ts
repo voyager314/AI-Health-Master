@@ -87,6 +87,21 @@ export function isBodyWeightOnGrid(value: number): boolean {
 }
 
 /**
+ * 校验一个体重值，返回不合规原因；合规返回 null。
+ *
+ * 字段规格与命令的载荷校验共用它：落库前与「提交前」用的是同一条规则，命令层
+ * 因此不必另写一份范围与网格判断。
+ */
+export function checkBodyWeight(value: unknown): string | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '应为有限数值'
+  if (value < BODY_WEIGHT_MIN_KG || value > BODY_WEIGHT_MAX_KG) {
+    return `应为 ${BODY_WEIGHT_MIN_KG}–${BODY_WEIGHT_MAX_KG} kg`
+  }
+  if (!isBodyWeightOnGrid(value)) return '至多一位小数（步进 0.1 kg）'
+  return null
+}
+
+/**
  * 重量是否落在 0.5 kg 的网格上。
  *
  * 用乘以 2 取整来判断，而不是比较浮点余数：0.1 + 0.2 这类表示误差会让余数判据
@@ -207,14 +222,8 @@ function checkRule(rule: FieldRule, value: unknown): string | null {
       return null
     }
 
-    case 'weightKg': {
-      if (typeof value !== 'number' || !Number.isFinite(value)) return '应为有限数值'
-      if (value < BODY_WEIGHT_MIN_KG || value > BODY_WEIGHT_MAX_KG) {
-        return `应为 ${BODY_WEIGHT_MIN_KG}–${BODY_WEIGHT_MAX_KG} kg`
-      }
-      if (!isBodyWeightOnGrid(value)) return '至多一位小数（步进 0.1 kg）'
-      return null
-    }
+    case 'weightKg':
+      return checkBodyWeight(value)
 
     case 'enum':
       if (typeof value !== 'string') return '应为字符串'

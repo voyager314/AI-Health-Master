@@ -8,10 +8,10 @@
  * 前者是记录的事实，后者记录的是这条记录当初怎么进来的，两者都不该由界面改。
  */
 import type { Uuid, ValidationIssue, WorkoutItem, WorkoutLog } from '@/entities'
-import { UUID_V7, validateWorkoutItems } from '@/entities'
+import { validateWorkoutItems } from '@/entities'
 import { retentionCutoff } from '@/stats'
 import { withAuditForCreate, withAuditForUpdate } from '@/storage/internal'
-import type { CommandContext } from './types.ts'
+import { checkClientId, findRowByClientId, type ClientKeyed } from './records.ts'
 import { defineCommand } from './types.ts'
 
 /**
@@ -37,29 +37,10 @@ function checkDraft(payload: unknown): ValidationIssue[] {
   }
 
   const { client_id, items } = payload as Partial<WorkoutLogDraft>
-  const issues: ValidationIssue[] = []
-
-  if (typeof client_id !== 'string' || !UUID_V7.test(client_id)) {
-    issues.push({ field: 'client_id', message: '应为 UUID v7' })
-  }
+  const issues: ValidationIssue[] = checkClientId(client_id)
   issues.push(...validateWorkoutItems(items))
 
   return issues
-}
-
-/**
- * 按幂等键取记录，包含墓碑。
- *
- * 走整表列举后在内存中比对，而不是建专门索引：查询形态仍是「单字段索引取数 +
- * 内存过滤」，上云后对应一条按用户与幂等键取数的查询。
- * 包含墓碑是必须的——同一 `client_id` 若曾被删除，重新提交也不应该复活或复制它。
- */
-async function findByClientId(
-  ctx: CommandContext,
-  clientId: string,
-): Promise<WorkoutLog | undefined> {
-  const rows = await ctx.repos.workout_log.list({ includeDeleted: true }, ctx.tx)
-  return rows.find((row) => row.client_id === clientId)
 }
 
 /**
@@ -74,7 +55,7 @@ export const createWorkoutLog = defineCommand<WorkoutLogDraft, Uuid>({
   stores: ['workout_log'],
   validate: checkDraft,
   handler: async (ctx, payload) => {
-    const existing = await findByClientId(ctx, payload.client_id)
+    const existing = await findRowByClientId(ctx, 'workout_log', payload.client_id)
     if (existing) return existing.id
 
     const created = withAuditForCreate(
@@ -105,7 +86,7 @@ export const updateWorkoutLog = defineCommand<WorkoutLogDraft, boolean>({
   stores: ['workout_log'],
   validate: checkDraft,
   handler: async (ctx, payload) => {
-    const existing = await findByClientId(ctx, payload.client_id)
+    const existing = await findRowByClientId(ctx, 'workout_log', payload.client_id)
     if (!existing) return false
 
     await ctx.repos.workout_log.put(
@@ -117,17 +98,12 @@ export const updateWorkoutLog = defineCommand<WorkoutLogDraft, boolean>({
 })
 
 /** 整条删除一条运动记录：写 `deleted_at`，记录本身保留到超出保留期 */
-export const removeWorkoutLog = defineCommand<{ readonly client_id: Uuid }, boolean>({
+export const removeWorkoutLog = defineCommand<ClientKeyed, boolean>({
   type: 'workout_log/remove',
   stores: ['workout_log'],
-  validate: (payload) => {
-    const p = payload as { client_id?: unknown } | null
-    return typeof p?.client_id === 'string' && UUID_V7.test(p.client_id)
-      ? []
-      : [{ field: 'client_id', message: '应为 UUID v7' }]
-  },
+  validate: (payload) => checkClientId((payload as Partial<ClientKeyed> | null)?.client_id),
   handler: async (ctx, payload) => {
-    const existing = await findByClientId(ctx, payload.client_id)
+    const existing = await findRowByClientId(ctx, 'workout_log', payload.client_id)
     if (!existing) return false
 
     await ctx.repos.workout_log.remove(existing.id, ctx.now, ctx.tx)
