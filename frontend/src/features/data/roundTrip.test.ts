@@ -211,6 +211,18 @@ describe('全表往返', () => {
     expect(log?.logged_at).toBe(AT)
   })
 
+  it('体重记录往返后逐字段一致，网格值不被改写', async () => {
+    const seeded = await seedAllTables()
+    await roundTrip()
+
+    const original = seeded.body_metric
+    const restored = await testDb.repos.body_metric.get(original.id)
+
+    expect(restored).toEqual(original)
+    expect(restored?.weight_kg).toBe(72.6)
+    expect(Number.isInteger((restored?.weight_kg ?? 0) * 10)).toBe(true)
+  })
+
   it('项目卡片的数量、顺序与各字段值不因往返改变', async () => {
     const seeded = await seedAllTables()
     const exported = JSON.parse(await roundTrip())
