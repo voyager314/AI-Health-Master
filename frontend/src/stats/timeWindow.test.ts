@@ -8,8 +8,11 @@
  */
 import {
   dayKeyOf,
+  daysBetween,
   isSameWeek,
   recentDayInterval,
+  recentWeekInterval,
+  recentWeekKeys,
   retentionCutoff,
   weekInterval,
   weekKeyOf,
@@ -234,5 +237,114 @@ describe('同周判定', () => {
     expect(isSameWeek(inBeijing, CST, inNewYork, EDT)).toBe(true)
 
     expect(weekInterval(inBeijing, CST).from).not.toBe(weekInterval(inNewYork, EDT).from)
+  })
+})
+
+describe('自然周窗口', () => {
+  // UTC+8 的 2026-10-28（周三）11:00
+  const wednesday = '2026-10-28T03:00:00.000Z'
+
+  it('weeks = 1 就是 now 所在的那一周', () => {
+    const one = recentWeekInterval(wednesday, CST, 1)
+    expect(one).toEqual(weekInterval(wednesday, CST))
+  })
+
+  it('weeks = 12 的首周周一恰在往前第 11 周', () => {
+    const twelve = recentWeekInterval(wednesday, CST, 12)
+    expect(dayKeyOf(twelve.from, CST)).toBe('2026-08-10')
+    expect(dayKeyOf(twelve.to, CST)).toBe('2026-11-02')
+    expect(twelve.to).toBe(weekInterval(wednesday, CST).to)
+  })
+
+  it('now 恰在周一零点时窗口从当天起算', () => {
+    const mondayMidnight = '2026-10-25T16:00:00.000Z'
+    const twelve = recentWeekInterval(mondayMidnight, CST, 12)
+    expect(dayKeyOf(twelve.from, CST)).toBe('2026-08-10')
+    expect(dayKeyOf(twelve.to, CST)).toBe('2026-11-02')
+  })
+
+  it('now 在周日最后一毫秒时窗口不变', () => {
+    const sundayLastMs = '2026-11-01T15:59:59.999Z'
+    expect(recentWeekInterval(sundayLastMs, CST, 12)).toEqual(
+      recentWeekInterval(wednesday, CST, 12),
+    )
+  })
+
+  it('跨年不改变窗口长度', () => {
+    const acrossYear = recentWeekInterval('2027-01-06T03:00:00.000Z', CST, 12)
+    expect(dayKeyOf(acrossYear.from, CST)).toBe('2026-10-19')
+    expect(
+      (Date.parse(acrossYear.to) - Date.parse(acrossYear.from)) / 86_400_000,
+    ).toBe(84)
+  })
+
+  it('西五区的窗口起点比东八区晚十三个小时', () => {
+    const instant = '2026-10-28T03:00:00.000Z'
+    expect(recentWeekInterval(instant, CST, 12).from).toBe('2026-08-09T16:00:00.000Z')
+    expect(recentWeekInterval(instant, CDT, 12).from).toBe('2026-08-10T05:00:00.000Z')
+  })
+
+  it('跨度不是正整数时抛错', () => {
+    for (const weeks of [0, -1, 1.5]) {
+      expect(() => recentWeekInterval(wednesday, CST, weeks)).toThrow(RangeError)
+      expect(() => recentWeekKeys(wednesday, CST, weeks)).toThrow(RangeError)
+    }
+  })
+})
+
+describe('自然周标识序列', () => {
+  const wednesday = '2026-10-28T03:00:00.000Z'
+
+  it('返回 12 项，时间正序，末项是本週', () => {
+    const keys = recentWeekKeys(wednesday, CST, 12)
+
+    expect(keys).toHaveLength(12)
+    expect([...keys].sort()).toEqual(keys)
+    expect(keys.at(-1)).toBe(weekKeyOf(wednesday, CST))
+  })
+
+  it('首项是窗口起点所在的那一天', () => {
+    const keys = recentWeekKeys(wednesday, CST, 12)
+    expect(keys[0]).toBe(dayKeyOf(recentWeekInterval(wednesday, CST, 12).from, CST))
+  })
+
+  it('相邻两项相差恰好七天', () => {
+    const keys = recentWeekKeys(wednesday, CST, 12)
+    for (let i = 1; i < keys.length; i += 1) {
+      expect(daysBetween(keys[i - 1]!, keys[i]!), `第 ${i} 项`).toBe(7)
+    }
+  })
+
+  it('周日仍算在本周，不滑到下一周', () => {
+    const sunday = '2026-11-01T10:00:00.000Z'
+    expect(recentWeekKeys(sunday, CST, 1)[0]).toBe('2026-10-26')
+  })
+})
+
+describe('两个自然日相差的天数', () => {
+  it('同一天为 0', () => {
+    expect(daysBetween('2026-10-30', '2026-10-30')).toBe(0)
+  })
+
+  it('跨月与跨年', () => {
+    expect(daysBetween('2026-10-01', '2026-10-30')).toBe(29)
+    expect(daysBetween('2026-12-31', '2027-01-01')).toBe(1)
+    expect(daysBetween('2026-12-07', '2027-01-05')).toBe(29)
+  })
+
+  it('闰年的二月', () => {
+    expect(daysBetween('2028-02-01', '2028-03-01')).toBe(29)
+    expect(daysBetween('2027-02-01', '2027-03-01')).toBe(28)
+  })
+
+  it('to 早于 from 时为负数', () => {
+    expect(daysBetween('2026-10-30', '2026-10-01')).toBe(-29)
+  })
+
+  it('标识不合法时抛错，不返回兜底值', () => {
+    for (const bad of ['2026-13-01', '2026-02-30', '2026-1-1', 'not-a-day']) {
+      expect(() => daysBetween(bad, '2026-10-30'), bad).toThrow(RangeError)
+      expect(() => daysBetween('2026-10-30', bad), bad).toThrow(RangeError)
+    }
   })
 })

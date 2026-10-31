@@ -11,8 +11,11 @@
 export {
   clockTimeOf,
   dayKeyOf,
+  daysBetween,
   isSameWeek,
   recentDayInterval,
+  recentWeekInterval,
+  recentWeekKeys,
   retentionCutoff,
   weekInterval,
   weekKeyOf,

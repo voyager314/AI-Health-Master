@@ -46,6 +46,34 @@ function pad(value: number): string {
   return String(value).padStart(2, '0')
 }
 
+/** 把「本地挂钟的 UTC 毫秒」写成自然日标识 */
+function formatDayKey(localClockMs: number): DayKey {
+  const local = new Date(localClockMs)
+  return `${local.getUTCFullYear()}-${pad(local.getUTCMonth() + 1)}-${pad(local.getUTCDate())}`
+}
+
+/**
+ * 把自然日标识解成它当作 UTC 那一天时的毫秒数。
+ *
+ * 只用于两个标识之间的差值，不参与任何时区换算。回写一遍再比对，是为了让
+ * `2026-02-30` 这种能被 `Date` 悄悄滚到下个月的写法也被拒掉。
+ */
+function dayKeyToMs(day: DayKey): number {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day)
+  if (!match) throw new RangeError(`不是合法的自然日标识：${day}`)
+
+  const ms = Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+  if (formatDayKey(ms) !== day) throw new RangeError(`不是合法的自然日标识：${day}`)
+  return ms
+}
+
+/** 校验自然周跨度，规则与 `assertDayCount` 相同 */
+function assertWeekCount(weeks: number): void {
+  if (!Number.isInteger(weeks) || weeks < 1) {
+    throw new RangeError(`自然周跨度应为正整数：${weeks}`)
+  }
+}
+
 /**
  * 校验自然日跨度。
  *
@@ -84,8 +112,7 @@ function localDayStartMs(instant: string, tzOffsetMinutes: number): number {
  * 整段统计，比当场失败难查得多。
  */
 export function dayKeyOf(instant: string, tzOffsetMinutes: number): DayKey {
-  const local = toLocalClock(instant, tzOffsetMinutes)
-  return `${local.getUTCFullYear()}-${pad(local.getUTCMonth() + 1)}-${pad(local.getUTCDate())}`
+  return formatDayKey(toLocalClock(instant, tzOffsetMinutes).getTime())
 }
 
 /**
@@ -197,4 +224,57 @@ export function isSameWeek(
   bTzOffsetMinutes: number,
 ): boolean {
   return weekKeyOf(a, aTzOffsetMinutes) === weekKeyOf(b, bTzOffsetMinutes)
+}
+
+/**
+ * 以某时刻所在的自然周为终点，往前数若干自然周，返回这段窗口的 UTC 区间。
+ *
+ * `weeks = 1` 就是 `now` 所在的那一周，`weeks = 12` 是含本周在内的 12 个自然周。
+ * 起点是窗口首周周一的本地零点，终点是 `now` 所在周之后那个周一的本地零点（不含），
+ * 因此窗口始终覆盖完整的周，不随 `now` 在一周里的位置变化。
+ *
+ * 偏移在整段窗口内按常量处理，与 `weekInterval` 一致。
+ */
+export function recentWeekInterval(
+  now: string,
+  tzOffsetMinutes: number,
+  weeks: number,
+): Interval {
+  assertWeekCount(weeks)
+  const thisWeek = weekInterval(now, tzOffsetMinutes)
+  const fromMs = Date.parse(thisWeek.from) - (weeks - 1) * 7 * DAY_MS
+
+  return { from: new Date(fromMs).toISOString(), to: thisWeek.to }
+}
+
+/**
+ * 同一段窗口内各周的周标识：每项是该周周一的自然日，时间正序。
+ *
+ * 给「近 N 周」图表的横轴用：横轴需要的是周的序列，而不是一段时刻区间。
+ * 末尾一项恒等于 `weekKeyOf(now, tzOffsetMinutes)`，首项是
+ * `recentWeekInterval` 起点所在的那一天。
+ */
+export function recentWeekKeys(now: string, tzOffsetMinutes: number, weeks: number): DayKey[] {
+  assertWeekCount(weeks)
+  const firstMondayMs = Date.parse(recentWeekInterval(now, tzOffsetMinutes, weeks).from)
+
+  const keys: DayKey[] = []
+  for (let i = 0; i < weeks; i += 1) {
+    // 周一是本地零点，对应的 UTC 时刻落在前一天；标识必须按本地挂钟取，
+    // 否则东八区的周一会写成前一天
+    const monday = new Date(firstMondayMs + i * 7 * DAY_MS).toISOString()
+    keys.push(dayKeyOf(monday, tzOffsetMinutes))
+  }
+  return keys
+}
+
+/**
+ * 两个自然日标识相差的天数：`to` 减 `from`，`to` 更早时为负。
+ *
+ * 两个标识都按 UTC 的同一天解算，差值因此恒为整数天，与任何时区偏移无关——
+ * 自然日标识本身已经带着偏移信息，再叠加一次就会把差值算歪。
+ * 标识格式不合法时抛 `RangeError`，与 `dayKeyOf` 对不可解析时刻的处理一致。
+ */
+export function daysBetween(from: DayKey, to: DayKey): number {
+  return Math.round((dayKeyToMs(to) - dayKeyToMs(from)) / DAY_MS)
 }
