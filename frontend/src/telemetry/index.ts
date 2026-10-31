@@ -141,3 +141,21 @@ export function trackHistoryExpand(props: {
 } & TrackDeps): Promise<void> {
   return track('history_expand', { days: props.days }, props)
 }
+
+/**
+ * 记录一条体重。
+ *
+ * 只记两件事：预填值有没有被改，以及保存时用的是哪个单位。体重数值、与预填值的
+ * 差值都不出现——它们既是身体数据，也能反过来推算出用户的体重。
+ *
+ * `prefill` 分三态而不是布尔：第一次记录时没有预填值，用「未改」或「已改」都不对，
+ * 那样会把首次记录混进预填命中率里。
+ */
+export function trackWeightAdd(props: {
+  /** `none` 表示此前没有任何记录可供预填 */
+  readonly prefill: 'none' | 'kept' | 'changed'
+  /** 保存时的显示单位 */
+  readonly unit: 'kg' | 'jin'
+} & TrackDeps): Promise<void> {
+  return track('weight_add', { prefill: props.prefill, unit: props.unit }, props)
+}

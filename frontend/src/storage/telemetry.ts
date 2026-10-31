@@ -25,6 +25,7 @@ export type TelemetryEventName =
   | 'item_add'
   | 'item_remove'
   | 'history_expand'
+  | 'weight_add'
 
 /**
  * 追加一条事件。

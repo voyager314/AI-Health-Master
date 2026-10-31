@@ -12,6 +12,7 @@ import {
   trackHistoryExpand,
   trackItemChange,
   trackRecordSave,
+  trackWeightAdd,
 } from '@/telemetry'
 import { createTestDb, type TestDb } from '@/test/db.ts'
 import { fixedDate } from '@/test/fixtures.ts'
@@ -214,6 +215,37 @@ describe('隐私边界', () => {
  * | `item_remove`    | `items`                                                  |
  * | `history_expand` | `days`                                                   |
  */
+describe('体重记录事件', () => {
+  it('写出预填状态与显示单位', async () => {
+    await trackWeightAdd({ prefill: 'changed', unit: 'jin', ...deps() })
+
+    const [event] = await events()
+    expect(event?.name).toBe('weight_add')
+    expect(event?.props).toEqual({ prefill: 'changed', unit: 'jin' })
+    expect(event?.occurred_at).toBe(AT)
+    expect(event?.tz_offset_minutes).toBe(480)
+  })
+
+  it('三种预填状态都写得进去', async () => {
+    for (const prefill of ['none', 'kept', 'changed'] as const) {
+      await trackWeightAdd({ prefill, unit: 'kg', ...deps() })
+    }
+
+    expect((await events()).map((event) => event.props.prefill)).toEqual([
+      'none',
+      'kept',
+      'changed',
+    ])
+  })
+
+  it('属性里没有体重数值与差值', async () => {
+    await trackWeightAdd({ prefill: 'kept', unit: 'kg', ...deps() })
+
+    const [event] = await events()
+    expect(Object.keys(event!.props).sort()).toEqual(['prefill', 'unit'])
+  })
+})
+
 describe('属性清单', () => {
   it('四个事件只带清单内的属性', async () => {
     await trackRecordSave({
@@ -226,12 +258,14 @@ describe('属性清单', () => {
     await trackItemChange({ action: 'add', items: 2, ...deps() })
     await trackItemChange({ action: 'remove', items: 1, ...deps() })
     await trackHistoryExpand({ days: 60, ...deps() })
+    await trackWeightAdd({ prefill: 'none', unit: 'kg', ...deps() })
 
     const allowed: Record<string, readonly string[]> = {
       record_save: ['input_source', 'items', 'metric_kinds', 'duration_ms'],
       item_add: ['items'],
       item_remove: ['items'],
       history_expand: ['days'],
+      weight_add: ['prefill', 'unit'],
     }
 
     for (const event of await events()) {
@@ -251,12 +285,14 @@ describe('属性清单', () => {
     await trackItemChange({ action: 'add', items: 1, ...deps() })
     await trackItemChange({ action: 'remove', items: 0, ...deps() })
     await trackHistoryExpand({ days: 90, ...deps() })
+    await trackWeightAdd({ prefill: 'kept', unit: 'jin', ...deps() })
 
     expect((await events()).map((e) => e.name)).toEqual([
       'record_save',
       'item_add',
       'item_remove',
       'history_expand',
+      'weight_add',
     ])
   })
 })
