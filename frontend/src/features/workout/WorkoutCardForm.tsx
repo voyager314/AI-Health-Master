@@ -9,10 +9,10 @@
  *
  * 写入失败时不清空已填写的内容、也不跳转：用户刚输入的东西比任何提示都重要。
  */
-import type { WorkoutItem, ValidationIssue } from '@/entities'
+import type { ValidationIssue, WorkoutItem, WriteFailureReason } from '@/entities'
 import { validateWorkoutItems } from '@/entities'
 import { filledMetricKinds } from '@/domain'
-import { Button } from '@/shared'
+import { Button, SaveFailureNotice } from '@/shared'
 import { StorageWriteError } from '@/commands'
 import { trackItemChange, trackRecordSave } from '@/telemetry'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
@@ -50,15 +50,9 @@ function toItem(draft: CardDraft): WorkoutItem {
   }
 }
 
-/** 写入失败的提示语。配额满要指明下一步动作，其余给通用原因 */
-function failureMessage(error: unknown): string {
-  if (error instanceof StorageWriteError && error.reason === 'quota_exceeded') {
-    return '本地存储空间不足，这次没有保存成功。建议先导出数据，再清理历史图片后重试。'
-  }
-  if (error instanceof StorageWriteError && error.reason === 'constraint') {
-    return '数据不符合约束，这次没有保存成功。请检查填写的内容后重试。'
-  }
-  return '写入本地数据库失败，这次没有保存成功。可以重试，或先导出数据以免丢失。'
+/** 把写入失败归类成原因；不是写入失败的异常按未知处理 */
+function failureReasonOf(error: unknown): WriteFailureReason {
+  return error instanceof StorageWriteError ? error.reason : 'unknown'
 }
 
 /** 把校验问题按卡片下标分组，供就地提示 */
@@ -99,7 +93,7 @@ export function WorkoutCardForm({
   const [drafts, setDrafts] = useState<CardDraft[]>(() => toDrafts(initialItems))
   const [saving, setSaving] = useState(false)
   const [issues, setIssues] = useState<Map<number, ValidationIssue[]>>(new Map())
-  const [failure, setFailure] = useState<string | null>(null)
+  const [failure, setFailure] = useState<WriteFailureReason | null>(null)
   // 表单挂载的时刻：耗时从用户看到这张表单算起，而不是从点击保存算起。
   // 必须在渲染之后取——渲染期间读时钟会让同一次渲染的结果不可重现
   const openedAt = useRef<number | null>(null)
@@ -145,7 +139,7 @@ export function WorkoutCardForm({
     try {
       await onSave(items)
     } catch (error) {
-      setFailure(failureMessage(error))
+      setFailure(failureReasonOf(error))
       return
     } finally {
       setSaving(false)
@@ -253,18 +247,11 @@ export function WorkoutCardForm({
       <Button onClick={addCard}>添加一项</Button>
 
       {failure ? (
-        <div className="stack">
-          <p className="feedback feedback--error" role="alert">
-            {failure}
-          </p>
-          {/* 两个出口固定：导出留一条后路，重试留在当前页再提交一次 */}
-          <a className="btn btn--block btn--secondary" href="/settings/data">
-            导出数据
-          </a>
-          <Button tone="primary" block disabled={saving} onClick={() => void submit()}>
-            重试
-          </Button>
-        </div>
+        <SaveFailureNotice
+          reason={failure}
+          retrying={saving}
+          onRetry={() => void submit()}
+        />
       ) : null}
 
       <Button type="submit" tone="primary" block disabled={saving || drafts.length === 0}>

@@ -12,7 +12,14 @@
  * 可被导入：任何层
  */
 
-export type { AuditFields, IsoUtc, StorageRef, UserId, Uuid } from './common.ts'
+export type {
+  AuditFields,
+  IsoUtc,
+  StorageRef,
+  UserId,
+  Uuid,
+  WriteFailureReason,
+} from './common.ts'
 
 export {
   ISO_UTC,

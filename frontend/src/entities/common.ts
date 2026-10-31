@@ -32,6 +32,14 @@ export type UserId = string
 export type StorageRef = string
 
 /**
+ * 本地存储写入失败的原因分类。
+ *
+ * 由存储层在失败时归类，界面据此决定提示什么、给不给重试入口。放在契约层而不是
+ * 存储层：它跨过存储、命令两层，一直传到界面，三处必须认同一套取值。
+ */
+export type WriteFailureReason = 'quota_exceeded' | 'constraint' | 'unknown'
+
+/**
  * 6 张业务表共有的字段。
  *
  * ⚠️ 全部由存储层的写入包装层注入，业务代码不得传入任何一项。

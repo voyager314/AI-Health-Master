@@ -6,15 +6,15 @@
  * 的自觉，这条规则就退化成了口头约定。handler 拿到的只有一个事务句柄，
  * 它既跳不过日志，也开不了自己的事务。
  */
-import type { PendingOp, StoreName } from '@/entities'
+import type { PendingOp, StoreName, WriteFailureReason } from '@/entities'
 import type { BulkOperations, WriteTx } from '@/storage/repositories/types.ts'
 import { v7 as uuidv7 } from 'uuid'
 import { getDatabase, type DbProvider } from './db.ts'
 import { clearAllInTransaction, replaceAllInTransaction } from './transfer.ts'
 import { assertValidRecord, type Now } from './write.ts'
 
-/** 写入失败的原因分类，决定界面提示什么、要不要给重试入口 */
-export type WriteFailureReason = 'quota_exceeded' | 'constraint' | 'unknown'
+/** 写入失败的原因分类转出给界面，定义在契约层，全仓库只有一份 */
+export type { WriteFailureReason }
 
 /**
  * 本地存储写入失败。
